@@ -15,7 +15,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | 場所 | 中身 | 書けるのは |
 | --- | --- | --- |
 | `/var/lib/tw-bookmarks/posts/<投稿ID>.md` | 元の投稿（前付けに投稿者・日時・画像・引用元、本文がその下） | tw-fetch |
-| `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル） | tw-fetch |
+| `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル、リンクカードの画像） | tw-fetch |
 | `/var/lib/tw-bookmarks/notes/*.md` | 噛み砕いたメモ。前付けの `posts` に関係する投稿ID | tw-study（段階2） |
 | `/var/lib/tw-bookmarks/status/fetch.json` | 自動取り込みの結果（段階3） | tw-fetch |
 

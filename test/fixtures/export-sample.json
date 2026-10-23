@@ -100,6 +100,61 @@
       }
      }
     }
+   },
+   "card": {
+    "rest_id": "https://t.co/abc",
+    "legacy": {
+     "name": "summary_large_image",
+     "url": "https://t.co/abc",
+     "binding_values": [
+      {
+       "key": "title",
+       "value": {
+        "string_value": "記事の<タイトル>",
+        "type": "STRING"
+       }
+      },
+      {
+       "key": "description",
+       "value": {
+        "string_value": "記事の説明",
+        "type": "STRING"
+       }
+      },
+      {
+       "key": "domain",
+       "value": {
+        "string_value": "example.com",
+        "type": "STRING"
+       }
+      },
+      {
+       "key": "card_url",
+       "value": {
+        "string_value": "https://t.co/abc",
+        "type": "STRING"
+       }
+      },
+      {
+       "key": "thumbnail_image_large",
+       "value": {
+        "image_value": {
+         "url": "https://pbs.twimg.com/card_img/1/x?format=jpg&name=600x314"
+        },
+        "type": "IMAGE"
+       }
+      },
+      {
+       "key": "summary_photo_image_original",
+       "value": {
+        "image_value": {
+         "url": "https://pbs.twimg.com/card_img/1/x?format=jpg&name=orig"
+        },
+        "type": "IMAGE"
+       }
+      }
+     ]
+    }
    }
   }
  },

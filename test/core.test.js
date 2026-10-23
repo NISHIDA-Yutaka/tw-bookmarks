@@ -8,8 +8,8 @@ import { normalizeExportRecord, baseImageUrl } from '../lib/normalize-export.js'
 import { imageUrl } from '../lib/media.js';
 import { renderMarkdown } from '../lib/markdown.js';
 import { linkifyText } from '../lib/html.js';
-import { Library, writePost, maxSavedSeq } from '../lib/library.js';
-import { statusBanner } from '../lib/render.js';
+import { Library, writePost, maxSavedSeq, addCards, lacksCard } from '../lib/library.js';
+import { statusBanner, postPage } from '../lib/render.js';
 
 const sample = JSON.parse(fs.readFileSync(new URL('./fixtures/export-sample.json', import.meta.url), 'utf8'));
 
@@ -116,4 +116,50 @@ test('自動取り込みの失敗や停止を帯で知らせる', () => {
     statusBanner({ last_success: '2026-10-23T10:00:00Z', last_error_at: '2026-10-23T11:00:00Z', last_error: '<認証切れ>' }, now),
     /失敗しています.*&lt;認証切れ&gt;/s,
   );
+});
+
+test('リンクカードを取り出し、t.co を元の URL に戻す', () => {
+  const p = normalizeExportRecord(sample[0]);
+  assert.deepEqual(p.card, {
+    title: '記事の<タイトル>',
+    description: '記事の説明',
+    domain: 'example.com',
+    url: 'https://example.com/article',
+    image_remote: 'https://pbs.twimg.com/card_img/1/x?format=jpg&name=orig',
+  });
+  assert.equal(imageUrl(p.card.image_remote, null), 'https://pbs.twimg.com/card_img/1/x?format=jpg&name=orig');
+  assert.equal(normalizeExportRecord(sample[1]).card, null);
+});
+
+test('取り込み済みの投稿にリンクカードだけを書き足し、本文は変えない', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twlib-'));
+  try {
+    const a = normalizeExportRecord(sample[0]);
+    // リンクカード導入前に取り込んだ状態を作る
+    const old = { ...a };
+    delete old.card;
+    old.quoted = { ...a.quoted };
+    delete old.quoted.card;
+    writePost(dir, old, { saved_seq: 1 });
+    const file = path.join(dir, 'posts', `${a.id}.md`);
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^card: null\n/m, ''));
+    const before = parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(lacksCard(dir, a.id), true);
+
+    assert.equal(addCards(dir, a.id, { ...a.card, image_file: `${a.id}/card.jpg` }, null), true);
+    assert.equal(addCards(dir, a.id, null, null), false);
+    const after = parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(after.body, before.body);
+    assert.equal(after.data.card.title, '記事の<タイトル>');
+    assert.equal(after.data.quoted.card, null);
+    assert.equal(after.data.quoted.text, before.data.quoted.text);
+
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const html = postPage('/tw', lib.get(a.id), lib);
+    assert.match(html, /class="linkcard" href="https:\/\/example\.com\/article"/);
+    assert.match(html, /記事の&lt;タイトル&gt;/);
+    assert.ok(lib.get(a.id).haystack.includes('記事の説明'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

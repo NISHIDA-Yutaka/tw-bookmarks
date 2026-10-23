@@ -2,6 +2,7 @@
 // ブラウザで書き出した JSON（ブックマーク）をライブラリに取り込む。
 // tools/export-bookmarks.js の書き出しと、twitter-web-exporter の JSON（「すべてのメタデータを含める」付きを推奨）の両方を読める。
 // 書き出しファイルは標準入力から渡す。すでにある投稿は書き換えずに飛ばすので、何度実行してもよい。
+// リンクカードを扱う前に取り込んだ投稿には、カードだけを書き足す（本文などは変えない）。
 //
 //   使い方: sudo -u tw-fetch node bin/tw-import.js < tw-bookmarks-export-xxxx.json
 //   オプション: --dry-run   何件取り込むかを数えるだけで、書き込まない
@@ -10,7 +11,7 @@
 // 書き出しファイルの並びは「新しくブックマークしたものが先」と見なし、その順で保存順の番号を付ける。
 
 import { normalizeExportRecord } from '../lib/normalize-export.js';
-import { hasPost, writePost, saveMedia, maxSavedSeq } from '../lib/library.js';
+import { hasPost, writePost, saveMedia, maxSavedSeq, lacksCard, addCards } from '../lib/library.js';
 import { fetchImage } from '../lib/media.js';
 
 const args = new Set(process.argv.slice(2));
@@ -57,54 +58,86 @@ for (const rec of records) {
   if (!rec.metadata || typeof rec.metadata !== 'object') noMeta++;
 }
 const fresh = posts.filter((p) => !hasPost(LIBRARY_DIR, p.id));
+const cardTargets = posts.filter((p) => hasPost(LIBRARY_DIR, p.id) && lacksCard(LIBRARY_DIR, p.id));
+const cardFound = cardTargets.filter((p) => p.card || p.quoted?.card).length;
 
 console.log(`書き出しファイル: ${records.length} 件（読めなかったもの ${invalid} 件）`);
 console.log(`新しく取り込む: ${fresh.length} 件（取り込み済み ${posts.length - fresh.length} 件は飛ばします）`);
+if (cardTargets.length) {
+  console.log(`取り込み済みの投稿にリンクカードを書き足す: ${cardTargets.length} 件を確認（カードがあるのは ${cardFound} 件）`);
+}
 if (noMeta) {
   console.log(
     `注意: ${noMeta} 件にメタデータがありません。引用元の本文や長文ポストの続きが取り込めません。` +
       '書き出し時に「すべてのメタデータを含める」にチェックを入れると取れます。',
   );
 }
-if (dryRun || !fresh.length) process.exit(0);
+if (dryRun || (!fresh.length && !cardTargets.length)) process.exit(0);
 
 // 古いものから順に番号を振る（ファイルの先頭ほど新しいブックマーク）
 let seq = maxSavedSeq(LIBRARY_DIR);
-const queue = fresh.reverse().map((post) => ({ post, seq: ++seq }));
+const queue = [
+  ...fresh.reverse().map((post) => ({ kind: 'new', post, seq: ++seq })),
+  ...cardTargets.map((post) => ({ kind: 'card', post })),
+];
+const total = queue.length;
 const fetchedAt = new Date().toISOString();
 let done = 0;
+let added = 0;
+let carded = 0;
 let mediaFailed = 0;
+
+async function saveImage(id, remote, size, name) {
+  if (noMedia || !remote) return null;
+  try {
+    const { ext, bytes } = await fetchImage(remote, size);
+    return saveMedia(LIBRARY_DIR, id, name, ext, bytes);
+  } catch (err) {
+    mediaFailed++;
+    console.error(`  画像を保存できませんでした（投稿 ${id}）: ${err.message}`);
+    return null;
+  }
+}
 
 async function saveImages(id, media, prefix) {
   const out = [];
   for (const [i, m] of (media ?? []).entries()) {
-    const entry = { ...m, file: null };
-    if (!noMedia && m.remote) {
-      try {
-        const { ext, bytes } = await fetchImage(m.remote, m.type === 'photo' ? 'orig' : 'large');
-        entry.file = saveMedia(LIBRARY_DIR, id, `${prefix}${i + 1}`, ext, bytes);
-      } catch (err) {
-        mediaFailed++;
-        console.error(`  画像を保存できませんでした（投稿 ${id}）: ${err.message}`);
-      }
-    }
-    out.push(entry);
+    out.push({ ...m, file: await saveImage(id, m.remote, m.type === 'photo' ? 'orig' : 'large', `${prefix}${i + 1}`) });
   }
   return out;
+}
+
+async function saveCard(id, card, name) {
+  if (!card) return null;
+  return { ...card, image_file: await saveImage(id, card.image_remote, null, name) };
 }
 
 async function worker() {
   for (let job = queue.shift(); job; job = queue.shift()) {
     const { post } = job;
-    post.media = await saveImages(post.id, post.media, '');
-    if (post.quoted && !post.quoted.unavailable) {
-      post.quoted.media = await saveImages(post.id, post.quoted.media, 'q');
+    const quoted = post.quoted && !post.quoted.unavailable ? post.quoted : null;
+    if (job.kind === 'new') {
+      post.media = await saveImages(post.id, post.media, '');
+      post.card = await saveCard(post.id, post.card, 'card');
+      if (quoted) {
+        quoted.media = await saveImages(post.id, quoted.media, 'q');
+        quoted.card = await saveCard(post.id, quoted.card, 'qcard');
+      }
+      writePost(LIBRARY_DIR, post, { saved_seq: job.seq, source: 'browser-export', fetched_at: fetchedAt });
+      added++;
+    } else {
+      const card = await saveCard(post.id, post.card, 'card');
+      const quotedCard = quoted ? await saveCard(post.id, quoted.card, 'qcard') : null;
+      if (addCards(LIBRARY_DIR, post.id, card, quotedCard) && (card || quotedCard)) carded++;
     }
-    writePost(LIBRARY_DIR, post, { saved_seq: job.seq, source: 'browser-export', fetched_at: fetchedAt });
     done++;
-    if (done % 25 === 0 || done === fresh.length) console.log(`  ${done} / ${fresh.length}`);
+    if (done % 25 === 0 || done === total) console.log(`  ${done} / ${total}`);
   }
 }
 
 await Promise.all([worker(), worker(), worker()]);
-console.log(`完了: ${done} 件を取り込みました。${mediaFailed ? `画像 ${mediaFailed} 件は保存できませんでした（元の投稿が消えている等）。` : ''}`);
+console.log(
+  `完了: ${added} 件を取り込みました。` +
+    (carded ? `取り込み済みの ${carded} 件にリンクカードを書き足しました。` : '') +
+    (mediaFailed ? `画像 ${mediaFailed} 件は保存できませんでした（元の投稿が消えている等）。` : ''),
+);
