@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//var/lib/tw-bookmarks/**)",
+      "Write(//var/lib/tw-bookmarks/notes/**)",
+      "Edit(//var/lib/tw-bookmarks/notes/**)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash",
+      "NotebookEdit",
+      "Read(~/.claude/**)",
+      "Read(~/.claude.json)",
+      "Read(~/.ssh/**)",
+      "Edit(~/.claude/**)",
+      "Edit(~/.claude.json)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.profile)",
+      "Edit(//srv/tw-study/**)",
+      "Edit(//var/lib/tw-bookmarks/posts/**)",
+      "Edit(//var/lib/tw-bookmarks/media/**)",
+      "Edit(//var/lib/tw-bookmarks/status/**)"
+    ],
+    "additionalDirectories": ["/var/lib/tw-bookmarks"],
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable"
+  }
+}

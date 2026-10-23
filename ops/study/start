@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# /usr/local/lib/tw-study/start
+# tw-study として噛み砕き役の Claude を起動する（/usr/local/bin/tw から sudo で呼ばれる）。
+set -euo pipefail
+[[ $(id -un) == tw-study ]] || { echo "tw-study で実行してください（ふだんは tw コマンドから）" >&2; exit 1; }
+export LANG="${LANG:-C.UTF-8}"
+# claude.ai に登録したコネクタ（Zen-do など）は噛み砕きに要らないので読み込まない。
+# 投稿に紛れた指示で、ほかのサービスを操作されないようにするため
+export ENABLE_CLAUDEAI_MCP_SERVERS=false
+# 作業場所（CLAUDE.md と権限の設定がある。root の持ち物なので tw-study からは書き換えられない）
+cd /srv/tw-study
+exec "$HOME/.local/bin/claude" "$@"

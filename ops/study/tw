@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# /usr/local/bin/tw
+# 噛み砕き役の Claude Code を起動する。中身は専用ユーザー tw-study で動く（sudo・秘密情報・push 用の鍵を持たない）。
+#   tw        新しく話しはじめる
+#   tw -c     前回の続きから
+exec sudo -u tw-study -H /usr/local/lib/tw-study/start "$@"

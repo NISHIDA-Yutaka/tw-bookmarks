@@ -6,8 +6,8 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 
 ## 段階
 
-1. **見られる**（このコミット）: 過去分の書き出しを取り込み、Tailscale の中から一覧・検索・詳細を見る
-2. 噛み砕ける: 専用ユーザー `tw-study` の Claude Code に ID を渡し、メモを残す
+1. **見られる**: 過去分の書き出しを取り込み、Tailscale の中から一覧・検索・詳細を見る
+2. **噛み砕ける**: 専用ユーザー `tw-study` の Claude Code に ID を渡し、メモを残す
 3. 自動で増える: X API でブックマークを1時間ごとに取り込む
 
 ## 構成
@@ -47,6 +47,16 @@ sudo -u tw-fetch node /srv/apps/tw-bookmarks/current/bin/tw-import.js < ~/tw-boo
 ```
 
 twitter-web-exporter の JSON（「すべてのメタデータを含める」付き）も同じ手順で取り込める。
+
+## 噛み砕き（段階2）
+
+ubuntu で `tw` と打つと、専用ユーザー tw-study として Claude Code が `/srv/tw-study` で起動する（`tw -c` で前回の続き）。
+
+- 作業場所の CLAUDE.md と権限の設定は `ops/study/`。サーバーには root の持ち物として置くので、tw-study からは書き換えられない
+- 守り方（投稿に紛れた指示への備え）
+  - OS: tw-study は sudo なし・GitHub の鍵なし。ライブラリは読めるが、書けるのは `notes/` だけ。X API の認証情報（段階3）やデプロイされたコードは読めない
+  - Claude Code の設定: シェル（Bash）は使えない。読めるのはライブラリ、書けるのは `notes/` だけ。自分のログイン情報は読めない。claude.ai のコネクタ（Zen-do など）は読み込まない
+  - Web ページを開くときは毎回確認が出る。投稿と関係のない URL を開こうとしたら「いいえ」を選ぶ
 
 ## 開発
 
