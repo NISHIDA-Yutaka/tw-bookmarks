@@ -25,17 +25,28 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 
 ## 過去分の取り込み
 
-1. PC のブラウザに Tampermonkey か Violentmonkey を入れ、[twitter-web-exporter](https://github.com/prinsss/twitter-web-exporter) を入れる
-2. x.com のブックマーク画面を一番下までスクロールし、exporter の画面から Bookmarks を書き出す
-   - 形式は **JSON**、**「すべてのメタデータを含める」にチェック**（無いと引用元の本文や長文ポストの続きが取れない）
-3. ファイルを VPS の ubuntu のホームに送り、取り込む
+拡張機能は入れない。`tools/export-bookmarks.js`（このリポジトリのコード）を PC のブラウザのコンソールに貼って書き出す。
+X の画面が受け取るブックマークのデータを横で記録してファイルに保存するだけで、どこにも送信しない。
+
+1. PC のブラウザ（Chrome など）で https://x.com/home を開く（ブックマーク画面ではなくホーム）
+2. F12 で開発者ツールを開き、「Console（コンソール）」タブを選ぶ
+3. `tools/export-bookmarks.js` の中身をすべてコピーして貼り、Enter
+   - Chrome で初回に貼り付けが止められたら、案内どおり `allow pasting` と打って Enter してから貼り直す
+4. 右上に「ブックマーク書き出し」のパネルが出たら、左のメニューから「ブックマーク」を開く
+5. パネルの「自動スクロール」を押す。件数が増えなくなると自動で止まる
+6. 「保存」を押すと `tw-bookmarks-export-YYYYMMDD.json` がダウンロードされる。終わったらタブを再読み込みする
+7. ファイルを VPS に送り、取り込む
 
 ```sh
-# まず件数だけ確かめる（書き込まない）
-sudo -u tw-fetch node /srv/apps/tw-bookmarks/current/bin/tw-import.js --dry-run < ~/twitter-Bookmarks-XXXX.json
+# 手元の PC で: ファイルを VPS の ubuntu のホームへ送る
+scp ~/Downloads/tw-bookmarks-export-YYYYMMDD.json ubuntu@kagoya:~/
+# VPS（ubuntu）で: 件数だけ確かめる（書き込まない）
+sudo -u tw-fetch node /srv/apps/tw-bookmarks/current/bin/tw-import.js --dry-run < ~/tw-bookmarks-export-YYYYMMDD.json
 # 取り込む（すでにある投稿は飛ばすので、何度実行してもよい）
-sudo -u tw-fetch node /srv/apps/tw-bookmarks/current/bin/tw-import.js < ~/twitter-Bookmarks-XXXX.json
+sudo -u tw-fetch node /srv/apps/tw-bookmarks/current/bin/tw-import.js < ~/tw-bookmarks-export-YYYYMMDD.json
 ```
+
+twitter-web-exporter の JSON（「すべてのメタデータを含める」付き）も同じ手順で取り込める。
 
 ## 開発
 

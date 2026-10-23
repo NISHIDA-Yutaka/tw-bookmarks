@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// twitter-web-exporter で書き出した JSON（ブックマーク）をライブラリに取り込む。
+// ブラウザで書き出した JSON（ブックマーク）をライブラリに取り込む。
+// tools/export-bookmarks.js の書き出しと、twitter-web-exporter の JSON（「すべてのメタデータを含める」付きを推奨）の両方を読める。
 // 書き出しファイルは標準入力から渡す。すでにある投稿は書き換えずに飛ばすので、何度実行してもよい。
 //
-//   使い方: sudo -u tw-fetch node bin/tw-import.js < twitter-Bookmarks-xxxx.json
+//   使い方: sudo -u tw-fetch node bin/tw-import.js < tw-bookmarks-export-xxxx.json
 //   オプション: --dry-run   何件取り込むかを数えるだけで、書き込まない
 //               --no-media  画像を取りに行かない（試しに取り込むとき用）
 //
@@ -32,7 +33,7 @@ let records;
 try {
   records = JSON.parse(input.replace(/^﻿/, ''));
 } catch {
-  console.error('JSON として読めませんでした。twitter-web-exporter で「JSON」形式を選んで書き出したファイルか確かめてください。');
+  console.error('JSON として読めませんでした。ブラウザで書き出したファイルそのものか確かめてください。');
   process.exit(1);
 }
 if (!Array.isArray(records)) {
@@ -99,7 +100,7 @@ async function worker() {
     if (post.quoted && !post.quoted.unavailable) {
       post.quoted.media = await saveImages(post.id, post.quoted.media, 'q');
     }
-    writePost(LIBRARY_DIR, post, { saved_seq: job.seq, source: 'twitter-web-exporter', fetched_at: fetchedAt });
+    writePost(LIBRARY_DIR, post, { saved_seq: job.seq, source: 'browser-export', fetched_at: fetchedAt });
     done++;
     if (done % 25 === 0 || done === fresh.length) console.log(`  ${done} / ${fresh.length}`);
   }
