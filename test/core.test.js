@@ -10,8 +10,11 @@ import { renderMarkdown } from '../lib/markdown.js';
 import { linkifyText } from '../lib/html.js';
 import { Library, writePost, maxSavedSeq, addCards, lacksCard } from '../lib/library.js';
 import { statusBanner, postPage } from '../lib/render.js';
+import { normalizeApiPage } from '../lib/normalize-api.js';
+import { startAuthorization, parseCallback, describeError } from '../lib/twapi.js';
 
 const sample = JSON.parse(fs.readFileSync(new URL('./fixtures/export-sample.json', import.meta.url), 'utf8'));
+const apiPage = JSON.parse(fs.readFileSync(new URL('./fixtures/api-bookmarks-page.json', import.meta.url), 'utf8'));
 
 test('前付けは書いたものをそのまま読み戻せる', () => {
   const data = { id: '1850000000000000002', n: 3, media: [{ type: 'photo', file: null }], q: null };
@@ -162,4 +165,76 @@ test('取り込み済みの投稿にリンクカードだけを書き足し、�
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('X API の応答から、長文・画像・リンクカード・引用元を取り出す', () => {
+  const posts = normalizeApiPage(apiPage);
+  assert.deepEqual(
+    posts.map((p) => p.id),
+    ['1860000000000000003', '1860000000000000002'],
+  );
+  const [a, b] = posts;
+  assert.equal(a.author.handle, 'example_a');
+  assert.equal(a.url, 'https://x.com/example_a/status/1860000000000000003');
+  assert.equal(a.created_at, '2026-10-20T10:00:00.000Z');
+  assert.equal(a.text, '長文ポストの全文です。記事はこちら https://example.com/article');
+  assert.deepEqual(a.media, [
+    { type: 'photo', remote: 'https://pbs.twimg.com/media/AAA.jpg', alt: '写真の説明' },
+    { type: 'video', remote: 'https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/BBB.jpg', alt: null },
+  ]);
+  assert.equal(a.card.title, '記事のタイトル');
+  assert.equal(a.card.url, 'https://example.com/article?ref=1');
+  assert.equal(a.card.domain, 'example.com');
+  assert.equal(a.card.image_remote, 'https://pbs.twimg.com/news_img/big?format=jpg&name=orig');
+  assert.equal(a.quoted.author.handle, 'example_q');
+  assert.equal(a.quoted.text, '引用元の本文');
+  assert.equal(a.quoted.media[0].remote, 'https://pbs.twimg.com/media/QQQ.png');
+
+  assert.equal(b.text, 'A & B <script> の話');
+  assert.equal(b.reply_to_id, '1850000000000000099');
+  assert.deepEqual(b.quoted, { id: '1810000000000000404', url: 'https://x.com/i/status/1810000000000000404', unavailable: true });
+  assert.equal(b.card, null);
+});
+
+test('X API の古い項目名（tweet）で返ってきても読める', () => {
+  const old = JSON.parse(
+    JSON.stringify(apiPage).replaceAll('"note_post"', '"note_tweet"').replaceAll('"referenced_posts"', '"referenced_tweets"'),
+  );
+  old.includes.tweets = old.includes.posts;
+  delete old.includes.posts;
+  const [a] = normalizeApiPage(old);
+  assert.match(a.text, /^長文ポストの全文です。/);
+  assert.equal(a.quoted.text, '引用元の本文');
+});
+
+test('X API の応答が想定外の形でも落ちない', () => {
+  assert.deepEqual(normalizeApiPage(null), []);
+  assert.deepEqual(normalizeApiPage({ data: 'x' }), []);
+  assert.deepEqual(normalizeApiPage({ data: [{ id: '1', text: 5, attachments: { media_keys: 'x' } }] })[0].media, []);
+});
+
+test('X の許可の URL は PKCE（S256）で、戻り先の state が違えば受け付けない', () => {
+  const { url, verifier, state } = startAuthorization('client-id-example');
+  const u = new URL(url);
+  assert.equal(u.origin, 'https://x.com');
+  assert.equal(u.searchParams.get('code_challenge_method'), 'S256');
+  assert.equal(u.searchParams.get('redirect_uri'), 'http://127.0.0.1/callback');
+  assert.equal(u.searchParams.get('scope'), 'tweet.read users.read bookmark.read offline.access');
+  assert.notEqual(u.searchParams.get('code_challenge'), verifier);
+  assert.equal(parseCallback(`http://127.0.0.1/callback?state=${state}&code=abc`, state), 'abc');
+  assert.throws(() => parseCallback('http://127.0.0.1/callback?state=other&code=abc', state), /別の許可操作/);
+  assert.throws(() => parseCallback('http://127.0.0.1/callback?error=access_denied', state), /許可されませんでした/);
+});
+
+test('X API のエラーは分かる言葉にして、認証切れは再許可の方法を示す', () => {
+  assert.match(describeError(400, { error: 'invalid_request', error_description: 'Value passed for the token was invalid.' }), /tw-fetch-login/);
+  assert.match(describeError(402, null), /クレジット/);
+  assert.match(describeError(503, { title: 'Service Unavailable' }), /HTTP 503）: Service Unavailable/);
+});
+
+test('取り込みの注意と最後の成功時刻を画面に出す', () => {
+  const now = Date.parse('2026-10-24T03:00:00Z');
+  const html = statusBanner({ last_success: '2026-10-24T02:30:00Z', last_warning: '100 件以上<増えて>' }, now);
+  assert.match(html, /100 件以上&lt;増えて&gt;/);
+  assert.equal(statusBanner({ last_success: '2026-10-24T02:30:00Z', last_warning: null }, now), '');
 });

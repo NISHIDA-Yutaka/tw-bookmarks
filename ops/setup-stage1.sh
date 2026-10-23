@@ -22,8 +22,9 @@ if ! id tw-fetch >/dev/null 2>&1; then
 fi
 usermod -aG tw-library tw-fetch
 usermod -aG tw-library tw-bookmarks
-# 取り込みのスクリプトはデプロイされたコード（/srv/apps/tw-bookmarks、グループ tw-bookmarks だけが読める）にあるので、読めるようにする
-usermod -aG tw-bookmarks tw-fetch
+# 段階3からは、tw-fetch は root が /usr/local/lib/tw-fetch に置いたプログラムだけを動かす（setup-stage3.sh）。
+# それまでの過去分の取り込みは、デプロイされたコード（グループ tw-bookmarks だけが読める）から行う
+[[ -d /usr/local/lib/tw-fetch ]] || usermod -aG tw-bookmarks tw-fetch
 id tw-fetch
 
 step "2. ライブラリの置き場 $LIB"

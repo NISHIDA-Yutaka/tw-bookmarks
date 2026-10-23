@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/tw-fetch-login（tw-fetch-check も同じファイル）
+#   sudo tw-fetch-login   X に「ブックマークを読んでよい」と許可する（最初の1回と、認証が切れたとき）
+#   sudo tw-fetch-check   試しに1ページ（10件）だけ受け取り、どんな項目が取れたかを見る（ライブラリには書かない）
+# どちらも取り込みと同じ tw-fetch ユーザーで、同じ囲い（書けるのはトークンの置き場だけ）の中で動かす。
+set -euo pipefail
+[[ $(id -u) == 0 ]] || { echo "sudo を付けて実行してください: sudo $(basename "$0")" >&2; exit 1; }
+case "$(basename "$0")" in
+  tw-fetch-login) args=(/usr/local/lib/tw-fetch/bin/tw-login.js) ;;
+  tw-fetch-check) args=(/usr/local/lib/tw-fetch/bin/tw-fetch.js --check) ;;
+  *) echo "tw-fetch-login か tw-fetch-check の名前で呼んでください" >&2; exit 1 ;;
+esac
+exec systemd-run --quiet --pty --collect \
+  -p User=tw-fetch -p Group=tw-fetch \
+  -p EnvironmentFile=/etc/apps/tw-bookmarks.env \
+  -p Environment=LIBRARY_DIR=/var/lib/tw-bookmarks \
+  -p StateDirectory=tw-fetch -p StateDirectoryMode=0700 \
+  -p WorkingDirectory=/usr/local/lib/tw-fetch \
+  -p NoNewPrivileges=yes -p ProtectSystem=strict -p ProtectHome=yes -p PrivateTmp=yes -p UMask=0077 \
+  /usr/bin/node "${args[@]}"

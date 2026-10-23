@@ -1,0 +1,43 @@
+# /etc/systemd/system/tw-fetch.service
+# X API から新しいブックマークを取り込む（tw-fetch.timer が1時間ごとに起動する）。
+# プログラムは root の持ち物の /usr/local/lib/tw-fetch にあり、tw-fetch 自身も開発用ユーザーも書き換えられない。
+# 書けるのは投稿・画像・状態の置き場と、更新用トークンの置き場（/var/lib/tw-fetch、tw-fetch だけが読める）だけ。
+[Unit]
+Description=tw-bookmarks: X のブックマークを取り込む
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tw-fetch
+Group=tw-fetch
+# Client ID（root だけが読める 0600）。systemd が root の権限で読み、環境変数として渡す
+EnvironmentFile=/etc/apps/tw-bookmarks.env
+Environment=NODE_ENV=production LIBRARY_DIR=/var/lib/tw-bookmarks
+StateDirectory=tw-fetch
+StateDirectoryMode=0700
+WorkingDirectory=/usr/local/lib/tw-fetch
+ExecStart=/usr/bin/node /usr/local/lib/tw-fetch/bin/tw-fetch.js
+TimeoutStartSec=15min
+MemoryMax=256M
+UMask=0027
+
+ReadWritePaths=/var/lib/tw-bookmarks/posts /var/lib/tw-bookmarks/media /var/lib/tw-bookmarks/status
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native

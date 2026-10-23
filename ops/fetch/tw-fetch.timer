@@ -1,0 +1,12 @@
+# /etc/systemd/system/tw-fetch.timer
+# 1時間ごとに tw-fetch.service を動かす（毎時ちょうどに X へ集中しないよう、最大5分ずらす）
+[Unit]
+Description=tw-bookmarks: 1時間ごとにブックマークを取り込む
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -11,8 +11,8 @@
 // 書き出しファイルの並びは「新しくブックマークしたものが先」と見なし、その順で保存順の番号を付ける。
 
 import { normalizeExportRecord } from '../lib/normalize-export.js';
-import { hasPost, writePost, saveMedia, maxSavedSeq, lacksCard, addCards } from '../lib/library.js';
-import { fetchImage } from '../lib/media.js';
+import { hasPost, maxSavedSeq, lacksCard, addCards } from '../lib/library.js';
+import { imageSaver } from '../lib/ingest.js';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -87,45 +87,21 @@ let added = 0;
 let carded = 0;
 let mediaFailed = 0;
 
-async function saveImage(id, remote, size, name) {
-  if (noMedia || !remote) return null;
-  try {
-    const { ext, bytes } = await fetchImage(remote, size);
-    return saveMedia(LIBRARY_DIR, id, name, ext, bytes);
-  } catch (err) {
+const { saveCard, savePost } = imageSaver(LIBRARY_DIR, {
+  noMedia,
+  onError(id, err) {
     mediaFailed++;
     console.error(`  画像を保存できませんでした（投稿 ${id}）: ${err.message}`);
-    return null;
-  }
-}
-
-async function saveImages(id, media, prefix) {
-  const out = [];
-  for (const [i, m] of (media ?? []).entries()) {
-    out.push({ ...m, file: await saveImage(id, m.remote, m.type === 'photo' ? 'orig' : 'large', `${prefix}${i + 1}`) });
-  }
-  return out;
-}
-
-async function saveCard(id, card, name) {
-  if (!card) return null;
-  return { ...card, image_file: await saveImage(id, card.image_remote, null, name) };
-}
+  },
+});
 
 async function worker() {
   for (let job = queue.shift(); job; job = queue.shift()) {
     const { post } = job;
-    const quoted = post.quoted && !post.quoted.unavailable ? post.quoted : null;
     if (job.kind === 'new') {
-      post.media = await saveImages(post.id, post.media, '');
-      post.card = await saveCard(post.id, post.card, 'card');
-      if (quoted) {
-        quoted.media = await saveImages(post.id, quoted.media, 'q');
-        quoted.card = await saveCard(post.id, quoted.card, 'qcard');
-      }
-      writePost(LIBRARY_DIR, post, { saved_seq: job.seq, source: 'browser-export', fetched_at: fetchedAt });
-      added++;
+      if (await savePost(post, { saved_seq: job.seq, source: 'browser-export', fetched_at: fetchedAt })) added++;
     } else {
+      const quoted = post.quoted && !post.quoted.unavailable ? post.quoted : null;
       const card = await saveCard(post.id, post.card, 'card');
       const quotedCard = quoted ? await saveCard(post.id, quoted.card, 'qcard') : null;
       if (addCards(LIBRARY_DIR, post.id, card, quotedCard) && (card || quotedCard)) carded++;

@@ -74,6 +74,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 }
 .check { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
 .count, .empty, .saved { color: var(--muted); font-size: 13px; }
+.count .fetched { float: right; }
 
 .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .card {

@@ -1,0 +1,65 @@
+{
+  "data": [
+    {
+      "id": "1860000000000000003",
+      "author_id": "900000000000000001",
+      "created_at": "2026-10-20T10:00:00.000Z",
+      "text": "短縮された本文… https://t.co/aaaa https://t.co/media1",
+      "note_post": {
+        "text": "長文ポストの全文です。記事はこちら https://t.co/aaaa",
+        "entities": { "urls": [{ "url": "https://t.co/aaaa", "expanded_url": "https://example.com/article", "display_url": "example.com/article" }] }
+      },
+      "attachments": { "media_keys": ["3_1", "7_2"] },
+      "entities": {
+        "urls": [
+          {
+            "url": "https://t.co/aaaa",
+            "expanded_url": "https://example.com/article",
+            "unwound_url": "https://example.com/article?ref=1",
+            "title": "記事のタイトル",
+            "description": "記事の説明",
+            "images": [
+              { "url": "https://pbs.twimg.com/news_img/small?format=jpg&name=150x150", "width": 150, "height": 150 },
+              { "url": "https://pbs.twimg.com/news_img/big?format=jpg&name=orig", "width": 1200, "height": 630 }
+            ]
+          },
+          { "url": "https://t.co/media1", "expanded_url": "https://x.com/example_a/status/1860000000000000003/photo/1", "media_key": "3_1" }
+        ]
+      },
+      "referenced_posts": [{ "type": "quoted", "id": "1810000000000000001" }]
+    },
+    {
+      "id": "1860000000000000002",
+      "author_id": "900000000000000002",
+      "created_at": "2026-10-19T09:00:00.000Z",
+      "text": "A &amp; B &lt;script&gt; の話",
+      "referenced_posts": [
+        { "type": "replied_to", "id": "1850000000000000099" },
+        { "type": "quoted", "id": "1810000000000000404" }
+      ]
+    },
+    { "id": "not-a-number", "text": "形が不正" }
+  ],
+  "includes": {
+    "users": [
+      { "id": "900000000000000001", "username": "example_a", "name": "例A" },
+      { "id": "900000000000000002", "username": "example_b", "name": "例B" },
+      { "id": "900000000000000003", "username": "example_q", "name": "引用される人" }
+    ],
+    "media": [
+      { "media_key": "3_1", "type": "photo", "url": "https://pbs.twimg.com/media/AAA.jpg", "alt_text": "写真の説明" },
+      { "media_key": "7_2", "type": "video", "preview_image_url": "https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/BBB.jpg" },
+      { "media_key": "3_9", "type": "photo", "url": "https://pbs.twimg.com/media/QQQ.png" }
+    ],
+    "posts": [
+      {
+        "id": "1810000000000000001",
+        "author_id": "900000000000000003",
+        "created_at": "2026-09-01T00:00:00.000Z",
+        "text": "引用元の本文",
+        "attachments": { "media_keys": ["3_9"] }
+      }
+    ]
+  },
+  "meta": { "result_count": 3, "next_token": "7140dibdnow9c7btw4b0i1cr6hsk6m" }
+}
