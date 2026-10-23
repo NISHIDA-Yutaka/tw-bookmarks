@@ -1,0 +1,13 @@
+{
+  "name": "tw-bookmarks",
+  "private": true,
+  "type": "module",
+  "description": "X のブックマークを手元にためて振り返る（外部ライブラリなし）",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

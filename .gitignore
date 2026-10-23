@@ -1,0 +1,5 @@
+node_modules/
+# 開発用のデータ置き場（本物のブックマークをリポジトリに入れない）
+dev-library/
+*.env
+.env*

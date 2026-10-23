@@ -1,0 +1,171 @@
+[
+ {
+  "id": "1850000000000000002",
+  "created_at": "2024-10-01 21:34:56 +09:00",
+  "full_text": "x",
+  "media": [],
+  "screen_name": "example_a",
+  "name": "テスト太郎",
+  "metadata": {
+   "__typename": "Tweet",
+   "rest_id": "1850000000000000002",
+   "core": {
+    "user_results": {
+     "result": {
+      "__typename": "User",
+      "rest_id": "12",
+      "core": {
+       "screen_name": "example_a",
+       "name": "テスト太郎"
+      },
+      "avatar": {
+       "image_url": "https://pbs.twimg.com/profile_images/1/a.jpg"
+      }
+     }
+    }
+   },
+   "legacy": {
+    "created_at": "Tue Oct 01 12:34:56 +0000 2024",
+    "full_text": "短い本文 https://t.co/abc <script>alert(1)</script> https://t.co/img",
+    "entities": {
+     "urls": [
+      {
+       "url": "https://t.co/abc",
+       "expanded_url": "https://example.com/article",
+       "display_url": "example.com/article"
+      }
+     ],
+     "media": [
+      {
+       "url": "https://t.co/img"
+      }
+     ]
+    },
+    "extended_entities": {
+     "media": [
+      {
+       "type": "photo",
+       "url": "https://t.co/img",
+       "media_url_https": "https://pbs.twimg.com/media/AAA.jpg",
+       "ext_alt_text": "説明文"
+      },
+      {
+       "type": "video",
+       "url": "https://t.co/img",
+       "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/BBB.jpg"
+      }
+     ]
+    },
+    "quoted_status_id_str": "1800000000000000001"
+   },
+   "note_tweet": {
+    "note_tweet_results": {
+     "result": {
+      "text": "長文ポストの全文です。\n二行目 https://t.co/abc\n<img src=x onerror=alert(1)>",
+      "entity_set": {
+       "urls": [
+        {
+         "url": "https://t.co/abc",
+         "expanded_url": "https://example.com/article"
+        }
+       ]
+      }
+     }
+    }
+   },
+   "quoted_status_result": {
+    "result": {
+     "__typename": "Tweet",
+     "rest_id": "1800000000000000001",
+     "core": {
+      "user_results": {
+       "result": {
+        "__typename": "User",
+        "rest_id": "11",
+        "core": {
+         "screen_name": "example_q",
+         "name": "引用元さん"
+        },
+        "avatar": {
+         "image_url": "https://pbs.twimg.com/profile_images/1/a.jpg"
+        }
+       }
+      }
+     },
+     "legacy": {
+      "created_at": "Mon Jan 01 03:00:00 +0000 2024",
+      "full_text": "引用元の本文です &amp; 記号 &lt;b&gt;",
+      "entities": {
+       "urls": []
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "1850000000000000003",
+  "full_text": "y",
+  "media": [],
+  "screen_name": "example_b",
+  "name": "ビー",
+  "metadata": {
+   "__typename": "TweetWithVisibilityResults",
+   "tweet": {
+    "rest_id": "1850000000000000003",
+    "core": {
+     "user_results": {
+      "result": {
+       "__typename": "User",
+       "rest_id": "13",
+       "core": {
+        "screen_name": "example_b",
+        "name": "ビー"
+       },
+       "avatar": {
+        "image_url": "https://pbs.twimg.com/profile_images/1/a.jpg"
+       }
+      }
+     }
+    },
+    "legacy": {
+     "created_at": "Wed Oct 02 00:00:00 +0000 2024",
+     "full_text": "引用元が消えた投稿",
+     "entities": {
+      "urls": []
+     },
+     "quoted_status_id_str": "1700000000000000009"
+    },
+    "quoted_status_result": {
+     "result": {
+      "__typename": "TweetTombstone"
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "1850000000000000004",
+  "created_at": "2024-09-30 10:00:00 +09:00",
+  "full_text": "メタデータなしの投稿 &amp; https://t.co/zzz",
+  "screen_name": "example_c",
+  "name": "シー",
+  "user_id": "14",
+  "media": [
+   {
+    "type": "photo",
+    "url": "https://t.co/zzz",
+    "thumbnail": "https://pbs.twimg.com/media/CCC?format=png&name=thumb",
+    "original": "https://pbs.twimg.com/media/CCC?format=png&name=orig",
+    "ext_alt_text": null
+   }
+  ],
+  "quoted_status": "1600000000000000005",
+  "in_reply_to": null
+ },
+ {
+  "id": "../../etc/passwd",
+  "full_text": "不正なID"
+ },
+ null
+]

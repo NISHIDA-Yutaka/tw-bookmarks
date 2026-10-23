@@ -1,0 +1,44 @@
+# /etc/systemd/system/app-tw-bookmarks.service
+# 振り返りの画面。ライブラリ（/var/lib/tw-bookmarks）を読むだけで、書き込みも外への通信もしない。
+[Unit]
+Description=tw-bookmarks（ブックマークの振り返り画面）
+After=network.target
+
+[Service]
+User=tw-bookmarks
+Group=tw-bookmarks
+# ライブラリを読むためのグループ。書き込みの権限は持たない
+SupplementaryGroups=tw-library
+WorkingDirectory=/srv/apps/tw-bookmarks/current
+Environment=NODE_ENV=production PORT=3050 LIBRARY_DIR=/var/lib/tw-bookmarks BASE_PATH=/tw
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=3
+MemoryMax=256M
+UMask=0027
+
+# 127.0.0.1 で Caddy から受けるだけ。外へは一切つながない
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
