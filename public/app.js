@@ -1,4 +1,4 @@
-// ID のコピーと、複数選択。選択はページをまたいで覚えておく（このタブの中だけ）。
+// ID のコピーと、複数選択（まとめてコピー・まとめてアーカイブ）。選択はページをまたいで覚えておく（このタブの中だけ）。
 (() => {
   const KEY = 'tw-picked';
   const load = () => {
@@ -76,6 +76,14 @@
     } else if (btn.id === 'pickcopy') {
       const ok = await copy(picked.join(' '));
       toast(ok ? `${picked.length} 件の ID をコピーしました` : 'コピーできませんでした');
+    } else if (btn.id === 'pickarchive') {
+      const form = $('pickform');
+      form.elements.ids.value = picked.join(' ');
+      form.elements.do.value = btn.dataset.do;
+      form.elements.back.value = location.pathname + location.search;
+      picked = [];
+      save(picked);
+      form.submit();
     } else if (btn.id === 'pickclear') {
       picked = [];
       save(picked);

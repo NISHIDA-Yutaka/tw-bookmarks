@@ -1,5 +1,5 @@
 # /etc/systemd/system/app-tw-bookmarks.service
-# 振り返りの画面。ライブラリ（/var/lib/tw-bookmarks）を読むだけで、書き込みも外への通信もしない。
+# 振り返りの画面。ライブラリ（/var/lib/tw-bookmarks）を読む。書けるのはアーカイブの状態（state/）だけで、外への通信はしない。
 [Unit]
 Description=tw-bookmarks（ブックマークの振り返り画面）
 After=network.target
@@ -9,6 +9,8 @@ User=tw-bookmarks
 Group=tw-bookmarks
 # ライブラリを読むためのグループ。書き込みの権限は持たない
 SupplementaryGroups=tw-library
+# アーカイブの状態だけは書ける（ops/setup-archive.sh が作る。無ければ書けないまま起動する）
+ReadWritePaths=-/var/lib/tw-bookmarks/state
 WorkingDirectory=/srv/apps/tw-bookmarks/current
 Environment=NODE_ENV=production PORT=3050 LIBRARY_DIR=/var/lib/tw-bookmarks BASE_PATH=/tw
 ExecStart=/usr/bin/node server.js

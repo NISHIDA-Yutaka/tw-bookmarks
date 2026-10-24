@@ -11,6 +11,7 @@ import { linkifyText } from '../lib/html.js';
 import { Library, writePost, maxSavedSeq, addCards, lacksCard } from '../lib/library.js';
 import { statusBanner, postPage } from '../lib/render.js';
 import { normalizeApiPage } from '../lib/normalize-api.js';
+import { setArchived, readArchive, parseArchiveForm, isSameOrigin } from '../lib/archive.js';
 import { startAuthorization, parseCallback, describeError } from '../lib/twapi.js';
 
 const sample = JSON.parse(fs.readFileSync(new URL('./fixtures/export-sample.json', import.meta.url), 'utf8'));
@@ -246,4 +247,45 @@ test('取り込みの注意と最後の成功時刻を画面に出す', () => {
   const html = statusBanner({ last_success: '2026-10-24T02:30:00Z', last_warning: '100 件以上<増えて>' }, now);
   assert.match(html, /100 件以上&lt;増えて&gt;/);
   assert.equal(statusBanner({ last_success: '2026-10-24T02:30:00Z', last_warning: null }, now), '');
+});
+
+test('アーカイブは元の投稿を書き換えず、別のファイルで持つ', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-arch-'));
+  fs.mkdirSync(path.join(dir, 'state'));
+  const post = normalizeExportRecord(sample[0]);
+  writePost(dir, post, { saved_seq: 1, source: 'browser-export' });
+  const before = fs.readFileSync(path.join(dir, 'posts', `${post.id}.md`), 'utf8');
+
+  assert.equal(setArchived(dir, [post.id, '../etc', post.id], true, new Date('2026-10-24T00:00:00Z')), 1);
+  assert.equal(setArchived(dir, [post.id], true), 0);
+  assert.deepEqual([...readArchive(dir)], [[post.id, '2026-10-24T00:00:00.000Z']]);
+  assert.equal(fs.readFileSync(path.join(dir, 'posts', `${post.id}.md`), 'utf8'), before);
+  const lib = new Library(dir, { ttlMs: 0 }).refresh();
+  assert.equal(lib.get(post.id).archived_at, '2026-10-24T00:00:00.000Z');
+
+  assert.equal(setArchived(dir, [post.id], false), 1);
+  assert.equal(lib.refresh().get(post.id).archived_at, null);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('アーカイブのフォームは、おかしな ID や外への戻り先を捨てる', () => {
+  const f = parseArchiveForm('ids=1850000000000000002+abc+1850000000000000003&do=archive&back=%2Ftw%2F%3Fview%3Dall', '/tw');
+  assert.deepEqual(f.ids, ['1850000000000000002', '1850000000000000003']);
+  assert.equal(f.archived, true);
+  assert.equal(f.back, '/tw/?view=all');
+  assert.equal(parseArchiveForm('ids=1&do=restore', '/tw').archived, false);
+  assert.equal(parseArchiveForm('ids=1&do=delete', '/tw').archived, null);
+  for (const back of ['https://evil.example/', '//evil.example/tw/', '/tw/\\evil', '/other']) {
+    assert.equal(parseArchiveForm(`ids=1&do=archive&back=${encodeURIComponent(back)}`, '/tw').back, '/tw/');
+  }
+});
+
+test('ほかのサイトから送られたアーカイブの操作は受け付けない', () => {
+  const host = 'kagoya.taild08d78.ts.net';
+  assert.equal(isSameOrigin({ host, origin: `https://${host}`, 'sec-fetch-site': 'same-origin' }), true);
+  assert.equal(isSameOrigin({ host, origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' }), false);
+  assert.equal(isSameOrigin({ host, origin: 'https://evil.example' }), false);
+  assert.equal(isSameOrigin({ host, origin: `https://${host}`, 'sec-fetch-site': 'same-site' }), false);
+  assert.equal(isSameOrigin({ host }), false);
+  assert.equal(isSameOrigin({ host, origin: 'null' }), false);
 });

@@ -19,7 +19,8 @@
       "Edit(//srv/tw-study/**)",
       "Edit(//var/lib/tw-bookmarks/posts/**)",
       "Edit(//var/lib/tw-bookmarks/media/**)",
-      "Edit(//var/lib/tw-bookmarks/status/**)"
+      "Edit(//var/lib/tw-bookmarks/status/**)",
+      "Edit(//var/lib/tw-bookmarks/state/**)"
     ],
     "additionalDirectories": ["/var/lib/tw-bookmarks"],
     "defaultMode": "default",

@@ -18,11 +18,13 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル、リンクカードの画像） | tw-fetch |
 | `/var/lib/tw-bookmarks/notes/*.md` | 噛み砕いたメモ。前付けの `posts` に関係する投稿ID | tw-study（段階2） |
 | `/var/lib/tw-bookmarks/status/fetch.json` | 自動取り込みの結果（段階3） | tw-fetch |
+| `/var/lib/tw-bookmarks/state/archive.json` | アーカイブした投稿IDと日時（元の投稿は書き換えない） | tw-bookmarks（画面） |
 | `/var/lib/tw-fetch/token.json` | X の更新用トークン（0700 のフォルダ。tw-fetch 以外は読めない、バックアップにも入らない） | tw-fetch |
 | `/usr/local/lib/tw-fetch/` | 取り込み係のプログラム（`setup-stage3.sh` がデプロイ済みのコードから写す） | root |
 | `/etc/apps/tw-bookmarks.env` | X の Client ID（`TW_CLIENT_ID=`、root だけが読める 0600） | root（sudoedit） |
 
-- 画面（`server.js`、ユーザー tw-bookmarks）は読むだけ。127.0.0.1:3050 で待ち受け、Caddy が Tailscale 側の `/tw/` を渡す
+- 画面（`server.js`、ユーザー tw-bookmarks）は読むのが基本。書けるのはアーカイブの状態（`state/`）だけ（systemd の ReadWritePaths）。127.0.0.1:3050 で待ち受け、Caddy が Tailscale 側の `/tw/` を渡す
+- アーカイブ: 分析が終わった投稿を一覧から外す。画面の「アーカイブ」ボタン（1件ずつ・選択してまとめて）で行い、「アーカイブ」タブで見る・戻す。ほかのサイトからの送信（CSRF）は Origin の確認で拒否する。準備は `ops/setup-archive.sh`
 - `/var/lib/tw-bookmarks` は毎日のサーバー外バックアップに自動で含まれる
 - 投稿の本文は他人が書いたデータ。画面ではすべてエスケープし、CSP で自分のサーバー以外のスクリプト・画像を読まない
 

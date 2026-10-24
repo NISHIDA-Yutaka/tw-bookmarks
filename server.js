@@ -1,4 +1,5 @@
-// 振り返りの画面。ライブラリのファイルを読んで HTML を返すだけ（書き込みはしない）。
+// 振り返りの画面。ライブラリのファイルを読んで HTML を返す。
+// 書き込むのはアーカイブの状態（state/archive.json）だけ。systemd で書ける場所を state/ に絞っている。
 // 127.0.0.1 だけで待ち受け、Caddy が Tailscale の中からの /tw/ をここへ渡す。
 //
 //   PORT          待ち受けるポート（既定 3050）
@@ -10,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Library } from './lib/library.js';
+import { setArchived, parseArchiveForm, isSameOrigin } from './lib/archive.js';
 import { layout, listPage, postPage, messagePage } from './lib/render.js';
 
 const PORT = Number(process.env.PORT ?? 3050);
@@ -41,14 +43,54 @@ function send(res, status, body, type = 'text/html; charset=utf-8', extra = {}) 
   res.end(res.req.method === 'HEAD' ? undefined : body);
 }
 
-function page(res, status, title, body) {
-  send(res, status, layout(BASE, { title, body, status: lib.status }));
+function page(res, status, title, body, view = '') {
+  send(res, status, layout(BASE, { title, body, status: lib.status, view }));
+}
+
+const MAX_FORM_BYTES = 16 * 1024;
+
+// アーカイブする／戻すボタン（フォームの POST）。終わったら元のページへ戻す
+function handleArchive(req, res) {
+  if (!isSameOrigin(req.headers)) return send(res, 403, 'この画面の外からの操作は受け付けません', 'text/plain; charset=utf-8');
+  if (!/^application\/x-www-form-urlencoded\b/.test(req.headers['content-type'] ?? '')) {
+    return send(res, 415, 'Unsupported Media Type', 'text/plain');
+  }
+  const chunks = [];
+  let size = 0;
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > MAX_FORM_BYTES) {
+      send(res, 413, 'Payload Too Large', 'text/plain');
+      req.destroy();
+    } else chunks.push(c);
+  });
+  req.on('end', () => {
+    if (res.headersSent) return;
+    try {
+      const form = parseArchiveForm(Buffer.concat(chunks).toString('utf8'), BASE);
+      lib.refresh();
+      const ids = form.ids.filter((id) => lib.get(id));
+      if (form.archived === null || !ids.length) return send(res, 303, '', 'text/plain', { Location: form.back });
+      setArchived(LIBRARY_DIR, ids, form.archived);
+      lib.invalidate();
+      send(res, 303, '', 'text/plain', { Location: form.back });
+    } catch (err) {
+      console.error(err);
+      page(
+        res,
+        500,
+        '保存できませんでした',
+        messagePage(BASE, 'アーカイブの状態を保存できませんでした。管理者が ops/setup-archive.sh を実行済みか確かめてください。'),
+      );
+    }
+  });
 }
 
 function handle(req, res) {
-  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method Not Allowed', 'text/plain');
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
+  if (req.method === 'POST' && p === `${BASE}/archive`) return handleArchive(req, res);
+  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method Not Allowed', 'text/plain');
 
   if (p === '/healthz') return send(res, 200, 'ok', 'text/plain');
   if (p === BASE) return send(res, 301, '', 'text/plain', { Location: `${BASE}/` });
@@ -81,16 +123,21 @@ function handle(req, res) {
     const item = lib.get(post[1]);
     if (!item) return page(res, 404, '見つかりません', messagePage(BASE, `ID ${post[1]} の投稿は見つかりません。`));
     const title = `${item.author_name ?? item.author_handle ?? ''}: ${(item.text ?? '').slice(0, 40)}`;
-    return page(res, 200, title, postPage(BASE, item, lib));
+    return page(res, 200, title, postPage(BASE, item, lib, `${p}${url.search}`));
   }
 
   if (rest === '') {
     const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
     const noteOnly = url.searchParams.get('note') === '1';
+    const view = ['archived', 'all'].includes(url.searchParams.get('view')) ? url.searchParams.get('view') : '';
     const words = q.toLowerCase().split(/[\s　]+/).filter(Boolean);
     let list = lib.posts;
     if (noteOnly) list = list.filter((x) => lib.notesFor(x.id).length);
     if (words.length) list = list.filter((x) => words.every((w) => x.haystack.includes(w)));
+    // 既定ではアーカイブした投稿を外す。外した件数は画面に出す
+    const hidden = view === '' ? list.filter((x) => x.archived_at).length : 0;
+    if (view === '') list = list.filter((x) => !x.archived_at);
+    if (view === 'archived') list = list.filter((x) => x.archived_at);
     const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
     const n = Math.min(Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1), pages);
     const body = listPage(BASE, {
@@ -98,11 +145,14 @@ function handle(req, res) {
       total: list.length,
       q,
       noteOnly,
+      view,
+      hidden,
+      back: `${p}${url.search}`,
       page: n,
       pages,
       lib,
     });
-    return page(res, 200, q ? `「${q}」の検索結果` : 'ブックマーク', body);
+    return page(res, 200, q ? `「${q}」の検索結果` : 'ブックマーク', body, view);
   }
 
   return page(res, 404, '見つかりません', messagePage(BASE, 'ページが見つかりません。'));
