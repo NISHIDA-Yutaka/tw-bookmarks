@@ -190,9 +190,11 @@ test('X API の応答から、長文・画像・リンクカード・引用元�
   assert.equal(a.quoted.text, '引用元の本文');
   assert.equal(a.quoted.media[0].remote, 'https://pbs.twimg.com/media/QQQ.png');
 
-  assert.equal(b.text, 'A & B <script> の話');
+  assert.equal(b.text, 'A & B <script> の話 https://twitter.com/quoted_c/status/1810000000000000002');
   assert.equal(b.reply_to_id, '1850000000000000099');
-  assert.deepEqual(b.quoted, { id: '1810000000000000404', url: 'https://x.com/i/status/1810000000000000404', unavailable: true });
+  assert.equal(b.quoted.author.handle, 'quoted_c');
+  assert.equal(b.quoted.url, 'https://x.com/quoted_c/status/1810000000000000002');
+  assert.equal(b.quoted.text, '投稿者が返ってこない引用元');
   assert.equal(b.card, null);
 });
 
@@ -208,6 +210,13 @@ test('X API の古い項目名（tweet）で返ってきても読める', () => 
 });
 
 test('X API の応答が想定外の形でも落ちない', () => {
+  const gone = structuredClone(apiPage);
+  gone.includes.posts = [];
+  assert.deepEqual(normalizeApiPage(gone)[1].quoted, {
+    id: '1810000000000000002',
+    url: 'https://x.com/i/status/1810000000000000002',
+    unavailable: true,
+  });
   assert.deepEqual(normalizeApiPage(null), []);
   assert.deepEqual(normalizeApiPage({ data: 'x' }), []);
   assert.deepEqual(normalizeApiPage({ data: [{ id: '1', text: 5, attachments: { media_keys: 'x' } }] })[0].media, []);
