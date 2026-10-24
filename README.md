@@ -17,6 +17,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | `/var/lib/tw-bookmarks/posts/<投稿ID>.md` | 元の投稿（前付けに投稿者・日時・画像・引用元、本文がその下） | tw-fetch |
 | `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル、リンクカードの画像） | tw-fetch |
 | `/var/lib/tw-bookmarks/notes/*.md` | 噛み砕いたメモ。前付けの `posts` に関係する投稿ID | tw-study（段階2） |
+| `/var/lib/tw-bookmarks/notes/translations/<投稿ID>.md` | 日本語以外の投稿の翻訳。画面は本文の代わりに翻訳を出し（「翻訳」の印付き）、原文は開くと見える | tw-study |
 | `/var/lib/tw-bookmarks/status/fetch.json` | 自動取り込みの結果（段階3） | tw-fetch |
 | `/var/lib/tw-bookmarks/state/archive.json` | アーカイブした投稿IDと日時（元の投稿は書き換えない） | tw-bookmarks（画面） |
 | `/var/lib/tw-fetch/token.json` | X の更新用トークン（0700 のフォルダ。tw-fetch 以外は読めない、バックアップにも入らない） | tw-fetch |

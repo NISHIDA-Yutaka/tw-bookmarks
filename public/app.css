@@ -19,6 +19,9 @@
   --new: #d9480f;
   --new-soft: #ffe8d9;
   --new-text: #a33208;
+  --tr: #6d4bc4;
+  --tr-soft: #eee8fb;
+  --tr-text: #4f3299;
   --bad: #fde8e6;
   --bad-text: #8a1c0f;
   --quote: #eef2f8;
@@ -46,6 +49,9 @@
     --new: #ff8a50;
     --new-soft: #40220f;
     --new-text: #ffc3a1;
+    --tr: #a98bf0;
+    --tr-soft: #2c2348;
+    --tr-text: #cdbbff;
     --bad: #3d1c17;
     --bad-text: #ffcfc6;
     --quote: #232938;
@@ -145,6 +151,14 @@ form.inline { display: inline; margin: 0; }
 .badge.note { background: var(--note-soft); color: var(--note-text); }
 .badge.arch { background: var(--arch-soft); color: var(--arch-text); }
 .badge.new { background: var(--new-soft); color: var(--new-text); }
+.badge.tr { background: var(--tr-soft); color: var(--tr-text); }
+.text.is-tr { border-left: 3px solid var(--tr); padding-left: 8px; }
+.translated { border-left: 3px solid var(--tr); padding-left: 10px; margin: 8px 0; }
+.tr-label { font-size: 12px; font-weight: 600; color: var(--tr-text); }
+.tr-label time { font-weight: 400; color: var(--muted); }
+.translated .original { margin-top: 4px; font-size: 14px; color: var(--muted); }
+.translated .original summary { cursor: pointer; color: var(--tr-text); font-size: 13px; }
+.translated .original .fulltext { font-size: 14px; }
 .src { border-radius: 4px; padding: 0 6px; font-size: 12px; }
 .src.api { background: var(--accent-soft); color: var(--accent-soft-text); }
 .src.export { background: var(--quote); color: var(--muted); }

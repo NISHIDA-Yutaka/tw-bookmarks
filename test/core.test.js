@@ -292,3 +292,28 @@ test('ほかのサイトから送られたアーカイブの操作は受け付�
   assert.equal(isSameOrigin({ host, origin: 'null', 'sec-fetch-site': 'same-origin' }), true);
   assert.equal(isSameOrigin({ host, origin: 'null', 'sec-fetch-site': 'cross-site' }), false);
 });
+
+test('翻訳があれば本文の代わりに翻訳を出し、翻訳だと分かる印と原文を添える', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twb-'));
+  try {
+    const a = normalizeExportRecord(sample[0]);
+    writePost(dir, a, { saved_seq: 1 });
+    const trDir = path.join(dir, 'notes', 'translations');
+    fs.mkdirSync(trDir, { recursive: true });
+    fs.writeFileSync(path.join(trDir, `${a.id}.md`), '---\nlang: "en"\ntranslated_at: "2026-10-24T21:30:00+09:00"\n---\n訳文<script>alert(1)</script>\n');
+    fs.writeFileSync(path.join(trDir, 'bad name.md'), '---\n---\n無視される\n');
+
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const p = lib.get(a.id);
+    assert.equal(p.translation.lang, 'en');
+    assert.ok(p.haystack.includes('訳文'));
+    const html = postPage('/tw', p, lib);
+    assert.match(html, /英語から翻訳（Claude）/);
+    assert.match(html, /badge tr">翻訳（英語）/);
+    assert.match(html, /訳文&lt;script&gt;/);
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /<details class="original"><summary>原文を表示/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
