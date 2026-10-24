@@ -288,4 +288,7 @@ test('ほかのサイトから送られたアーカイブの操作は受け付�
   assert.equal(isSameOrigin({ host, origin: `https://${host}`, 'sec-fetch-site': 'same-site' }), false);
   assert.equal(isSameOrigin({ host }), false);
   assert.equal(isSameOrigin({ host, origin: 'null' }), false);
+  // Referrer-Policy: no-referrer の画面からのフォームは Origin が null になる
+  assert.equal(isSameOrigin({ host, origin: 'null', 'sec-fetch-site': 'same-origin' }), true);
+  assert.equal(isSameOrigin({ host, origin: 'null', 'sec-fetch-site': 'cross-site' }), false);
 });
