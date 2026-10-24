@@ -217,10 +217,21 @@ form.inline { display: inline; margin: 0; }
 .quoted { background: var(--quote); border-left: 3px solid var(--muted); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
 .reply { font-size: 13px; color: var(--muted); margin: 4px 0; }
 
-.notes h2 { font-size: 17px; margin: 24px 0 8px; color: var(--note-text); }
-.note { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--note); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
-.note-head { font-size: 13px; color: var(--muted); }
-.note-head b { color: var(--text); font-size: 15px; }
+.notes h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 28px 0 10px; }
+.memo-count { background: var(--note-soft); color: var(--note-text); border-radius: 999px; padding: 0 9px; font-size: 13px; }
+.memo { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 12px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.05); }
+.memo-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.memo-head h3 { margin: 0; font-size: 16px; line-height: 1.4; }
+.memo-head h3::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--note); margin-right: 8px; vertical-align: middle; }
+.memo-head time { font-size: 12px; color: var(--muted); }
+.memo .md { line-height: 1.75; }
+.memo .md > :first-child { margin-top: 8px; }
+.memo .md h3, .memo .md h4 { font-size: 14px; font-weight: 700; color: var(--note-text); margin: 18px 0 4px; }
+.memo .md h5, .memo .md h6 { font-size: 14px; margin: 12px 0 2px; }
+.memo .md p { margin: 4px 0 8px; }
+.memo .md ul, .memo .md ol { margin: 4px 0 8px; padding-left: 1.4em; }
+.memo .md li { margin: 2px 0; }
+.memo .md a { overflow-wrap: anywhere; }
 .related { font-size: 13px; color: var(--muted); margin: 4px 0; }
 .md { overflow-wrap: anywhere; }
 .md h3, .md h4, .md h5, .md h6 { font-size: 15px; margin: 14px 0 4px; }
