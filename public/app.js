@@ -1,4 +1,5 @@
 // ID のコピーと、複数選択（まとめてコピー・まとめてアーカイブ）。選択はページをまたいで覚えておく（このタブの中だけ）。
+// アーカイブの操作で同じページに戻ってきたときは、操作したときのスクロール位置に戻す。
 (() => {
   const KEY = 'tw-picked';
   const load = () => {
@@ -16,6 +17,30 @@
     }
   };
   let picked = load();
+
+  // 操作の前に「戻り先のページ」と位置を覚え、戻ってきたページが同じならそこへスクロールする
+  const SCROLL_KEY = 'tw-scroll';
+  const here = () => location.pathname + location.search;
+  const rememberScroll = (back) => {
+    try {
+      sessionStorage.setItem(SCROLL_KEY, JSON.stringify({ back, y: Math.round(window.scrollY) }));
+    } catch {
+      // 覚えられない環境では先頭に戻るだけ
+    }
+  };
+  const restoreScroll = () => {
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || 'null');
+      sessionStorage.removeItem(SCROLL_KEY);
+    } catch {
+      return;
+    }
+    if (!saved || saved.back !== here() || !Number.isFinite(saved.y)) return;
+    window.scrollTo(0, saved.y);
+    // 画像が読み込まれて高さが変わっても、同じ位置にとどまる
+    window.addEventListener('load', () => window.scrollTo(0, saved.y), { once: true });
+  };
 
   const $ = (id) => document.getElementById(id);
   let toastTimer;
@@ -80,7 +105,8 @@
       const form = $('pickform');
       form.elements.ids.value = picked.join(' ');
       form.elements.do.value = btn.dataset.do;
-      form.elements.back.value = location.pathname + location.search;
+      form.elements.back.value = here();
+      rememberScroll(form.elements.back.value);
       picked = [];
       save(picked);
       form.submit();
@@ -91,9 +117,15 @@
     }
   });
 
+  document.addEventListener('submit', (e) => {
+    const back = e.target.elements && e.target.elements.back;
+    if (back) rememberScroll(back.value);
+  });
+
   window.addEventListener('pageshow', () => {
     picked = load();
     render();
   });
   render();
+  restoreScroll();
 })();
