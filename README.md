@@ -23,9 +23,24 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | `/var/lib/tw-fetch/token.json` | X の更新用トークン（0700 のフォルダ。tw-fetch 以外は読めない、バックアップにも入らない） | tw-fetch |
 | `/usr/local/lib/tw-fetch/` | 取り込み係のプログラム（`setup-stage3.sh` がデプロイ済みのコードから写す） | root |
 | `/etc/apps/tw-bookmarks.env` | X の Client ID（`TW_CLIENT_ID=`、root だけが読める 0600） | root（sudoedit） |
+| `/var/lib/tw-bookmarks/state/related.json` | Jev で判定した関連する投稿の覚え書き（投稿が10件増えたら作り直す） | tw-bookmarks（画面） |
+| `/usr/local/lib/tw-jev/` | Jev の中継係のプログラム（`setup-jev.sh` がデプロイ済みのコードから写す） | root |
+| `/etc/apps/tw-jev.env` | Jev の API キー（`JEV_API_KEY=`、任意で `JEV_MONTHLY_TOKENS=`。root だけが読める 0600） | root（sudoedit） |
+| `/var/lib/private/tw-jev/usage.json` | Jev を今月どれだけ使ったか | 中継係 |
+
+### ユーザーと役目
+
+| 名前 | 役目 | 持っている秘密 |
+| --- | --- | --- |
+| tw-bookmarks | 画面を動かす。外へはつながない | なし |
+| tw-fetch | X からブックマークを取り込む | X の更新用トークン |
+| tw-study | 噛み砕き役（`tw` で起動する Claude Code）。書けるのは `notes/` だけ | なし |
+| tw-bookmarks-dev | 開発用。本番には触れない | なし |
+| （使い捨て） | Jev の中継係。systemd の DynamicUser で、動いている間だけ作られる | Jev の API キー |
+| tw-library（グループ） | ライブラリを読めるグループ（tw-bookmarks・tw-fetch・tw-study） | — |
 
 - 画面（`server.js`、ユーザー tw-bookmarks）は読むのが基本。書けるのはアーカイブの状態（`state/`）だけ（systemd の ReadWritePaths）。127.0.0.1:3050 で待ち受け、Caddy が Tailscale 側の `/tw/` を渡す
-- アーカイブ: 分析が終わった投稿を一覧から外す。画面の「アーカイブ」ボタン（1件ずつ・選択してまとめて）で行い、「アーカイブ」タブで見る・戻す。ほかのサイトからの送信（CSRF）は Origin の確認で拒否する。準備は `ops/setup-archive.sh`
+- アーカイブ: 分析が終わった投稿を一覧から外す。画面の「アーカイブ」ボタン（1件ずつ・選択してまとめて）で行い、「アーカイブ」タブで見る・戻す。ほかのサイトからの送信（CSRF）は Sec-Fetch-Site と Origin の確認で拒否する。準備は `ops/setup-archive.sh`
 - `/var/lib/tw-bookmarks` は毎日のサーバー外バックアップに自動で含まれる
 - 投稿の本文は他人が書いたデータ。画面ではすべてエスケープし、CSP で自分のサーバー以外のスクリプト・画像を読まない
 
@@ -87,6 +102,23 @@ systemctl list-timers tw-fetch.timer        # 次の取り込み予定
 - 取り込み係のプログラムは root の持ち物（`/usr/local/lib/tw-fetch`）。GitHub に push しても、管理者が `setup-stage3.sh` を実行するまで本番の取り込み係は変わらない。tw-fetch はデプロイされたコードを読めない
 - tw-study（噛み砕き役）・tw-bookmarks（画面）・開発用ユーザーは、トークンも Client ID も読めない
 - 取り込みのサービスが書けるのは posts・media・status とトークンの置き場だけ（systemd の ProtectSystem=strict）
+
+## 意味での検索と関連する投稿（Jev）
+
+Jev（Typesafe AI, Inc.・米国。送った内容を学習に使わないと明記）は、文章を書かずに「当てはまる確率」を返すモデル。
+
+- **Jev で探す**: 検索窓に「〜について話している投稿」と書いて押すと、表示中のタブの投稿を全件 Jev に判定させ、当てはまりそうな順（50% 以上）に並べる。結果は1時間覚えておく
+- **関連する投稿**: 詳細ページの下。まず言葉の重なり（2文字ずつの並び）・同じ投稿者・同じリンク先・同じメモで候補を20件選んで出し、Jev が「同じ話題か」を判定した上位5件に差し替える。判定は `state/related.json` に覚え、投稿が10件増えるまで作り直さない
+- Jev に送るのは本文（翻訳があれば翻訳）・投稿者名・引用元・リンクカードの見出し・メモの見出し。URL は除く
+- 守り方
+  - Jev を呼ぶのは中継係（`bin/tw-jev.js`）だけ。プログラムは root の持ち物、キーは systemd が root で読んで渡す。画面・噛み砕き役・開発用ユーザーはキーを読めない
+  - 画面と中継係は `/run/tw-jev.sock`（グループ tw-bookmarks だけ）で話す。ネットワークのポートは開けない。画面は今まで通り外へつながない
+  - 中継係は月の上限（既定 2500万トークン ≒ $1.05）を超える依頼を断る。Typesafe は前払い制なので、チャージした額より多くは使われない
+  - Jev の答えは確率だけなので、投稿に紛れた指示で何かが実行されることはない
+  - 「Jev で探す」と関連の判定は、この画面の中からの操作（Sec-Fetch-Site）でだけ動く
+- 費用の目安: 1回の検索（数百件）で約6万トークン ≒ $0.003。関連の判定は1投稿 約1万トークン ≒ $0.0004（2回目からは覚え書きを使う）
+- 準備: `sudoedit /etc/apps/tw-jev.env` に `JEV_API_KEY=` を書き、`sudo bash /srv/apps/tw-bookmarks/current/ops/setup-jev.sh`。中継係を変えたときも deploy-app のあとにこれを実行する
+- 中継係が動いていなければ、「Jev で探す」ボタンは出ず、関連する投稿は言葉の重なりだけで出す
 
 ## 開発
 

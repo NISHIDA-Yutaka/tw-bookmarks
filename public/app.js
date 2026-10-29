@@ -159,6 +159,29 @@
     picked = load();
     render();
   });
+  // 関連する投稿: まず言葉の重なりで選んだものを出し、Jev の判定が届いたら差し替える
+  const related = document.getElementById('related');
+  if (related && related.dataset.src) {
+    fetch(related.dataset.src, { credentials: 'same-origin' })
+      .then((r) => r.text())
+      .then((html) => {
+        related.innerHTML = html;
+      })
+      .catch(() => {
+        const wait = related.querySelector('.rel-wait');
+        if (wait) wait.textContent = '（Jev の判定は取れませんでした）';
+      });
+  }
+
+  // Jev で探すのは数秒かかるので、押したことが分かるようにする
+  document.addEventListener('submit', (e) => {
+    const btn = e.submitter;
+    if (btn && btn.classList.contains('jev')) {
+      btn.textContent = 'Jev で探しています…';
+      setTimeout(() => (btn.disabled = true), 0);
+    }
+  });
+
   render();
   restoreScroll();
 })();

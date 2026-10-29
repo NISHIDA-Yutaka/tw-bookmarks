@@ -1,0 +1,13 @@
+# /etc/systemd/system/tw-jev.socket
+# Jev の中継係の受け口。サーバーの中だけのソケットで、画面（グループ tw-bookmarks）だけがつなげる。ネットワークのポートは開けない。
+[Unit]
+Description=tw-bookmarks: Jev の中継係の受け口
+
+[Socket]
+ListenStream=/run/tw-jev.sock
+SocketUser=root
+SocketGroup=tw-bookmarks
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target

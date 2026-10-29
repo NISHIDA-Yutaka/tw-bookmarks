@@ -317,3 +317,59 @@ test('翻訳があれば本文の代わりに翻訳を出し、翻訳だと分�
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Jev への依頼は形を確かめ、投稿ごとの質問にまとめ、確率を受け取る', async () => {
+  const { checkRequest, buildBody, judge, describeError } = await import('../lib/jev.js');
+  assert.throws(() => checkRequest({ question: '', items: [] }));
+  assert.throws(() => checkRequest({ question: 'q', items: [{ id: '../x', text: 'a' }] }));
+  const req = checkRequest({ question: 'AI の話？', context: 'base', items: Array.from({ length: 12 }, (_, i) => ({ id: String(100 + i), text: `t${i}` })) });
+  const body = buildBody(req, req.items.slice(0, 2));
+  assert.equal(body.state.base, 'base');
+  assert.equal(body.state.p2, 't1');
+  assert.equal(body.questions.p1.type, 'noul');
+  assert.match(body.questions.p1.instructions, /"p1".*AI の話？/);
+
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    const b = JSON.parse(opts.body);
+    calls.push({ url, auth: opts.headers.Authorization });
+    const answers = Object.fromEntries(Object.keys(b.questions).map((k) => [k, { type: 'noul', noul: b.state[k] === 't3' ? 0.9 : 0.1 }]));
+    return new Response(JSON.stringify({ answers, usage: { input_tokens: 50 } }), { status: 200 });
+  };
+  try {
+    const out = await judge('KEY', req);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, 'https://api.typesafe.ai/v1/systemone');
+    assert.equal(calls[0].auth, 'Bearer KEY');
+    assert.equal(out.scores['103'], 0.9);
+    assert.equal(out.scores['100'], 0.1);
+    assert.equal(out.tokens, 100);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.match(describeError(401, ''), /API キーが無効/);
+  assert.doesNotMatch(describeError(500, '{"detail":"x"}'), /KEY/);
+});
+
+test('関連する投稿の候補は、言葉の重なりと同じメモで選ぶ', async () => {
+  const { localRelated } = await import('../lib/related.js');
+  const { jevText } = await import('../lib/jev-client.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twrel-'));
+  try {
+    const mk = (id, text, seq) => writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: `u${id.slice(-1)}` }, text, media: [], card: null, quoted: null }, { saved_seq: seq });
+    mk('1000000000000000001', '機械学習モデルの評価指標について', 1);
+    mk('1000000000000000002', '評価指標の選び方：機械学習モデル編', 2);
+    mk('1000000000000000003', '今日の晩ごはんはカレー', 3);
+    mk('1000000000000000004', '猫がかわいい', 4);
+    fs.mkdirSync(path.join(dir, 'notes'));
+    fs.writeFileSync(path.join(dir, 'notes', 'a.md'), '---\ntitle: "まとめ"\nposts: ["1000000000000000001", "1000000000000000004"]\n---\nメモ\n');
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const ids = localRelated(lib, lib.get('1000000000000000001')).map((x) => x.id);
+    assert.deepEqual(ids.slice(0, 2).sort(), ['1000000000000000002', '1000000000000000004']);
+    assert.ok(!ids.includes('1000000000000000003'));
+    assert.match(jevText(lib.get('1000000000000000001'), lib.notesFor('1000000000000000001')), /@u1:\n機械学習.*\n\[メモ\] まとめ/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

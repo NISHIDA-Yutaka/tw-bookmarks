@@ -20,6 +20,9 @@
   --new-soft: #ffe8d9;
   --new-text: #a33208;
   --tr: #6d4bc4;
+  --jev: #0e7c86;
+  --jev-soft: #dcf3f4;
+  --jev-text: #0a5b62;
   --tr-soft: #eee8fb;
   --tr-text: #4f3299;
   --bad: #fde8e6;
@@ -50,6 +53,9 @@
     --new-soft: #40220f;
     --new-text: #ffc3a1;
     --tr: #a98bf0;
+    --jev: #3cc6d0;
+    --jev-soft: #12363a;
+    --jev-text: #9fe6eb;
     --tr-soft: #2c2348;
     --tr-text: #cdbbff;
     --bad: #3d1c17;
@@ -151,6 +157,16 @@ form.inline { display: inline; margin: 0; }
 .badge.note { background: var(--note-soft); color: var(--note-text); }
 .badge.arch { background: var(--arch-soft); color: var(--arch-text); }
 .badge.new { background: var(--new-soft); color: var(--new-text); }
+.badge.jev { background: var(--jev-soft); color: var(--jev-text); }
+button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
+.notice { background: var(--arch-soft); color: var(--arch-text); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.related-posts h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 28px 0 10px; }
+.rel-wait { font-size: 12px; font-weight: 400; color: var(--muted); }
+.rel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rel-list a { display: block; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--jev); border-radius: 10px; padding: 10px 14px; color: inherit; text-decoration: none; }
+.rel-list a:hover { border-color: var(--jev); }
+.rel-meta { display: block; font-size: 13px; }
+.rel-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; overflow-wrap: anywhere; }
 .badge.tr { background: var(--tr-soft); color: var(--tr-text); }
 .text.is-tr { border-left: 3px solid var(--tr); padding-left: 8px; }
 .translated { border-left: 3px solid var(--tr); padding-left: 10px; margin: 8px 0; }
