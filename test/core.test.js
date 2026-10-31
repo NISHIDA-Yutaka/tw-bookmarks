@@ -373,3 +373,24 @@ test('関連する投稿の候補は、言葉の重なりと同じメモで選�
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('本文のコピーには投稿者・本文・翻訳・引用元・URL が入り、HTML では属性としてエスケープされる', async () => {
+  const { copyText } = await import('../lib/render.js');
+  const p = normalizeExportRecord(sample[0]);
+  p.text = '本文 "<b>"';
+  p.translation = { text: '訳文', lang: 'en' };
+  const t = copyText(p);
+  assert.match(t, new RegExp(`^\\[X の投稿 ${p.id}\\]`));
+  assert.match(t, /本文 "<b>"/);
+  assert.match(t, /\[翻訳（Claude）\]\n訳文/);
+  assert.match(t, /https:\/\/x\.com\//);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twcp-'));
+  try {
+    writePost(dir, p, { saved_seq: 1 });
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const html = postPage('/tw', lib.get(p.id), lib);
+    assert.match(html, /class="copytext" data-text="\[X の投稿[^"]*本文 &quot;&lt;b&gt;&quot;/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

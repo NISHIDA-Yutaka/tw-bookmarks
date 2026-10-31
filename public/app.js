@@ -125,7 +125,9 @@
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest && e.target.closest('button');
     if (!btn) return;
-    if (btn.classList.contains('copyid')) {
+    if (btn.classList.contains('copytext')) {
+      toast((await copy(btn.dataset.text)) ? '本文をコピーしました' : 'コピーできませんでした');
+    } else if (btn.classList.contains('copyid')) {
       toast((await copy(btn.dataset.id)) ? `ID ${btn.dataset.id} をコピーしました` : 'コピーできませんでした');
     } else if (btn.id === 'pickcopy') {
       const ok = await copy(picked.join(' '));

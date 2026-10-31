@@ -112,6 +112,7 @@ button {
   cursor: pointer;
 }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.copytext { background: transparent; color: var(--accent-soft-text); border-color: var(--accent-soft); }
 button.copyid:not(.primary) { background: var(--accent-soft); color: var(--accent-soft-text); border-color: transparent; }
 button.archive { background: var(--arch-soft); color: var(--arch-text); border-color: transparent; }
 button.restore { background: var(--card); color: var(--arch-text); border-color: var(--arch); }
