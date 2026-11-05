@@ -168,6 +168,17 @@ button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
 .rel-list a:hover { border-color: var(--jev); }
 .rel-meta { display: block; font-size: 13px; }
 .rel-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; overflow-wrap: anywhere; }
+.badge.thread { background: var(--accent-soft); color: var(--accent-soft-text); }
+.thread h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 28px 0 10px; }
+.thread-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.thread-item { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+.thread-item:not(:last-child)::after { content: ""; position: absolute; left: 22px; bottom: -11px; width: 2px; height: 10px; background: var(--accent); }
+.thread-item.current { border-color: var(--accent); }
+.thread-item .fulltext { font-size: 15px; margin: 6px 0 0; }
+.thread-item.level-1 { margin-left: 14px; }
+.thread-item.level-2 { margin-left: 28px; }
+.thread-item.level-3 { margin-left: 42px; }
+.thread-item.level-4 { margin-left: 56px; }
 .badge.tr { background: var(--tr-soft); color: var(--tr-text); }
 .text.is-tr { border-left: 3px solid var(--tr); padding-left: 8px; }
 .translated { border-left: 3px solid var(--tr); padding-left: 10px; margin: 8px 0; }

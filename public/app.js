@@ -104,11 +104,14 @@
     }
   }
 
+  // スレッドは1つの選択に複数の ID が入っている
+  const pickedCount = () => new Set(picked.join(' ').split(' ').filter(Boolean)).size;
+
   function render() {
     document.querySelectorAll('.pickbox').forEach((box) => {
       box.checked = picked.includes(box.value);
     });
-    $('pickcount').textContent = String(picked.length);
+    $('pickcount').textContent = String(pickedCount());
     $('pickbar').hidden = picked.length === 0;
     document.body.classList.toggle('has-pickbar', picked.length > 0);
   }
@@ -128,10 +131,11 @@
     if (btn.classList.contains('copytext')) {
       toast((await copy(btn.dataset.text)) ? '本文をコピーしました' : 'コピーできませんでした');
     } else if (btn.classList.contains('copyid')) {
-      toast((await copy(btn.dataset.id)) ? `ID ${btn.dataset.id} をコピーしました` : 'コピーできませんでした');
+      const n = btn.dataset.id.split(' ').length;
+      toast((await copy(btn.dataset.id)) ? `${n > 1 ? `${n} 件の ID` : `ID ${btn.dataset.id}`} をコピーしました` : 'コピーできませんでした');
     } else if (btn.id === 'pickcopy') {
       const ok = await copy(picked.join(' '));
-      toast(ok ? `${picked.length} 件の ID をコピーしました` : 'コピーできませんでした');
+      toast(ok ? `${pickedCount()} 件の ID をコピーしました` : 'コピーできませんでした');
     } else if (btn.id === 'pickarchive') {
       const form = $('pickform');
       form.elements.ids.value = picked.join(' ');

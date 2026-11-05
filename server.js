@@ -11,7 +11,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Library } from './lib/library.js';
+import { Library, collapseThreads } from './lib/library.js';
 import { setArchived, parseArchiveForm, isSameOrigin } from './lib/archive.js';
 import { layout, listPage, postPage, messagePage, relatedList } from './lib/render.js';
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
@@ -95,6 +95,8 @@ function mayUseJev(headers) {
   return !site || site === 'same-origin' || site === 'none';
 }
 
+const sameThread = (post, id) => Boolean(post.thread?.items.some((i) => i.id === id));
+
 const RELATED_SHOWN = 5;
 const RELATED_MIN = 0.5;
 const SEARCH_MIN = 0.5;
@@ -126,7 +128,7 @@ async function handleRelated(req, res, id) {
       return send(res, 502, relatedList(BASE, null, { error: err.message }));
     }
   }
-  const items = list.filter((x) => x.p >= RELATED_MIN && lib.get(x.id)).slice(0, RELATED_SHOWN).map((x) => ({ post: lib.get(x.id), p: x.p }));
+  const items = list.filter((x) => x.p >= RELATED_MIN && lib.get(x.id) && !sameThread(post, x.id)).slice(0, RELATED_SHOWN).map((x) => ({ post: lib.get(x.id), p: x.p }));
   return send(res, 200, relatedList(BASE, items, { jev: true }));
 }
 
@@ -148,7 +150,7 @@ async function jevSearch(q, candidates) {
 function postRelated(post) {
   const cached = cachedRelated(LIBRARY_DIR, post.id, lib.posts.length);
   if (cached) {
-    const items = cached.filter((x) => x.p >= RELATED_MIN && lib.get(x.id)).slice(0, RELATED_SHOWN).map((x) => ({ post: lib.get(x.id), p: x.p }));
+    const items = cached.filter((x) => x.p >= RELATED_MIN && lib.get(x.id) && !sameThread(post, x.id)).slice(0, RELATED_SHOWN).map((x) => ({ post: lib.get(x.id), p: x.p }));
     return { items, jev: true };
   }
   const items = localRelated(lib, post, RELATED_SHOWN).map((c) => ({ post: lib.get(c.id) }));
@@ -225,9 +227,11 @@ async function handle(req, res) {
     }
     if (!jevMode && words.length) list = list.filter((x) => words.every((w) => x.haystack.includes(w)));
     // 既定ではアーカイブした投稿を外す。外した件数は画面に出す
-    const hidden = view === '' ? list.filter((x) => x.archived_at).length : 0;
+    const hidden = view === '' ? collapseThreads(list.filter((x) => x.archived_at)).length : 0;
     if (view === '') list = list.filter((x) => !x.archived_at);
     if (view === 'archived') list = list.filter((x) => x.archived_at);
+    // スレッドは1枚にまとめる。Jev で探したときは、いちばん当てはまった投稿を代表にする
+    list = collapseThreads(list, { first: jevMode });
     const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
     const n = Math.min(Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1), pages);
     const body = listPage(BASE, {

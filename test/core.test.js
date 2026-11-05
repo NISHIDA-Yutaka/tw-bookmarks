@@ -8,8 +8,8 @@ import { normalizeExportRecord, baseImageUrl } from '../lib/normalize-export.js'
 import { imageUrl } from '../lib/media.js';
 import { renderMarkdown } from '../lib/markdown.js';
 import { linkifyText } from '../lib/html.js';
-import { Library, writePost, maxSavedSeq, addCards, lacksCard } from '../lib/library.js';
-import { statusBanner, postPage } from '../lib/render.js';
+import { Library, writePost, maxSavedSeq, addCards, lacksCard, buildThreads, collapseThreads } from '../lib/library.js';
+import { statusBanner, postPage, listPage, copyText } from '../lib/render.js';
 import { normalizeApiPage } from '../lib/normalize-api.js';
 import { setArchived, readArchive, parseArchiveForm, isSameOrigin } from '../lib/archive.js';
 import { startAuthorization, parseCallback, describeError } from '../lib/twapi.js';
@@ -391,6 +391,65 @@ test('本文のコピーには投稿者・本文・翻訳・引用元・URL が�
     const lib = new Library(dir, { ttlMs: 0 }).refresh();
     const html = postPage('/tw', lib.get(p.id), lib);
     assert.match(html, /class="copytext" data-text="以下は X の他人の投稿[^"]*\[X の投稿[^"]*本文 &quot;&lt;b&gt;&quot;/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('返信でつながった投稿をスレッドにする（枝分かれ・親が無い・輪になったデータ）', () => {
+  const mk = (id, reply_to_id = null, created_at = `2026-11-0${id}T00:00:00Z`) => ({ id, reply_to_id, created_at });
+  const posts = [mk('4', '2'), mk('3', '2'), mk('2', '1'), mk('1'), mk('5', '999'), mk('6'), mk('7', '8'), mk('8', '7'), mk('9', '9')];
+  buildThreads(posts);
+  const by = Object.fromEntries(posts.map((p) => [p.id, p]));
+  assert.deepEqual(by['4'].thread.items, [
+    { id: '1', level: 0 },
+    { id: '2', level: 0 },
+    { id: '3', level: 1 },
+    { id: '4', level: 1 },
+  ]);
+  assert.equal(by['1'].thread, by['3'].thread);
+  for (const id of ['5', '6', '7', '8', '9']) assert.equal(by[id].thread, null);
+
+  const card = (list, opts) => collapseThreads(list, opts).map((p) => p.id);
+  assert.deepEqual(card(posts.slice(0, 6)), ['1', '5', '6']);
+  assert.deepEqual(card([by['4'], by['6'], by['3']]), ['3', '6']);
+  assert.deepEqual(card([by['4'], by['6'], by['3']], { first: true }), ['4', '6']);
+});
+
+test('スレッドは一覧で1枚になり、ID・本文・アーカイブが全体に効き、詳細に全部出る', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twth-'));
+  try {
+    const a = '1000000000000000001';
+    const b = '1000000000000000002';
+    const mk = (id, text, reply_to_id, seq) =>
+      writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, created_at: '2026-11-04T00:00:00.000Z', text, media: [], card: null, quoted: null, reply_to_id }, { saved_seq: seq });
+    mk(a, '最初の<投稿>', null, 1);
+    mk(b, '続きの投稿', a, 2);
+    fs.mkdirSync(path.join(dir, 'notes'));
+    fs.writeFileSync(path.join(dir, 'notes', 'n.md'), `---\ntitle: "m"\nposts: ["${b}"]\n---\nメモ\n`);
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    assert.equal(lib.threadNoteCount(lib.get(a)), 1);
+
+    const list = collapseThreads(lib.posts);
+    assert.deepEqual(list.map((p) => p.id), [a]);
+    const html = listPage('/tw', { posts: list, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
+    assert.match(html, /スレッド 2件/);
+    assert.match(html, /メモ 1/);
+    assert.ok(html.includes(`class="pickbox" value="${a} ${b}"`));
+    assert.ok(html.includes(`class="copyid" data-id="${a} ${b}"`));
+    assert.ok(html.includes(`name="ids" value="${a} ${b}"`));
+    assert.match(html, />スレッドをアーカイブ</);
+
+    const page = postPage('/tw', lib.get(b), lib);
+    assert.match(page, /class="thread-item level-0 current"/);
+    assert.match(page, /最初の&lt;投稿&gt;/);
+    assert.doesNotMatch(page, /<投稿>/);
+    assert.doesNotMatch(page, /class="reply"/);
+
+    const text = copyText(lib.threadPosts(lib.get(b)));
+    assert.match(text, /返信でつながった 2 件/);
+    assert.ok(text.indexOf('最初の<投稿>') < text.indexOf('続きの投稿'));
+    assert.equal(text.match(/ここから投稿/g).length, 1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
