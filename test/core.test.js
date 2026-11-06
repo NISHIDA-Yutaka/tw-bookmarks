@@ -434,6 +434,8 @@ test('スレッドは一覧で1枚になり、ID・本文・アーカイブが�
     assert.deepEqual(list.map((p) => p.id), [a]);
     const html = listPage('/tw', { posts: list, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
     assert.match(html, /スレッド 2件/);
+    assert.doesNotMatch(html, /id="more"/);
+    assert.match(listPage('/tw', { posts: list, total: 120, q: 'a b', noteOnly: false, back: '/tw/', page: 1, pages: 3, lib }), /id="more" data-next="2" data-pages="3"><a href="\/tw\/\?q=a\+b&amp;page=2">/);
     assert.match(html, /class="card has-note has-thread"/);
     assert.match(html, /↳ ほかに 1 件つながっています/);
     assert.match(html, /メモ 1/);

@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Library, collapseThreads } from './lib/library.js';
 import { setArchived, parseArchiveForm, isSameOrigin } from './lib/archive.js';
-import { layout, listPage, postPage, messagePage, relatedList } from './lib/render.js';
+import { layout, listPage, cardList, postPage, messagePage, relatedList } from './lib/render.js';
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
 import { localRelated, cachedRelated, saveRelated } from './lib/related.js';
 
@@ -233,15 +233,25 @@ async function handle(req, res) {
     // スレッドは1枚にまとめる。Jev で探したときは、いちばん当てはまった投稿を代表にする
     list = collapseThreads(list, { first: jevMode });
     const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
-    const n = Math.min(Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1), pages);
+    const asked = Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
+    const n = Math.min(asked, pages);
+    const sp = new URLSearchParams(url.search);
+    sp.delete('part');
+    const back = `${p}${sp.size ? `?${sp}` : ''}`;
+    // part=1 はスクロールで足すカードだけを返す。ふつうの表示は page までの全部を出す（戻ったときに同じ位置まで見えるように）
+    if (url.searchParams.get('part') === '1') {
+      if (notice) return send(res, 502, '', 'text/plain');
+      if (asked > pages) return send(res, 200, '');
+      return send(res, 200, cardList(BASE, list.slice((n - 1) * PAGE_SIZE, n * PAGE_SIZE), lib, back, scores));
+    }
     const body = listPage(BASE, {
-      posts: list.slice((n - 1) * PAGE_SIZE, n * PAGE_SIZE),
+      posts: list.slice(0, n * PAGE_SIZE),
       total: list.length,
       q,
       noteOnly,
       view,
       hidden,
-      back: `${p}${url.search}`,
+      back,
       page: n,
       pages,
       lib,

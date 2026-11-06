@@ -1,5 +1,5 @@
 // ID のコピーと、複数選択（まとめてコピー・まとめてアーカイブ）。選択はページをまたいで覚えておく（このタブの中だけ）。
-// アーカイブの操作で同じページに戻ってきたときと、詳細から「← 一覧へ」で戻ったときは、元のスクロール位置に戻す。
+// 一覧はスクロールで続きを足す。アーカイブの操作で同じページに戻ってきたときと、詳細から「← 一覧へ」で戻ったときは、元のスクロール位置に戻す。
 (() => {
   const KEY = 'tw-picked';
   const load = () => {
@@ -158,7 +158,10 @@
 
   document.addEventListener('submit', (e) => {
     const back = e.target.elements && e.target.elements.back;
-    if (back) rememberScroll(back.value);
+    if (!back) return;
+    // スクロールで足した分も含めて戻れるよう、今の URL を戻り先にする
+    back.value = here();
+    rememberScroll(back.value);
   });
 
   window.addEventListener('pageshow', () => {
@@ -187,6 +190,46 @@
       setTimeout(() => (btn.disabled = true), 0);
     }
   });
+
+  // 一覧の続き: 下に近づいたら次のカードを足す。URL の page も進めるので、再読み込みや戻ったときも同じところまで見える
+  const more = document.getElementById('more');
+  const cards = document.querySelector('.cards');
+  if (more && cards && 'IntersectionObserver' in window) {
+    let next = Number(more.dataset.next);
+    const last = Number(more.dataset.pages);
+    let busy = false;
+    const pageUrl = (n, part) => {
+      const u = new URL(location.href);
+      u.searchParams.set('page', String(n));
+      if (part) u.searchParams.set('part', '1');
+      return u.pathname + u.search;
+    };
+    const io = new IntersectionObserver(
+      async (entries) => {
+        if (busy || !entries.some((e) => e.isIntersecting)) return;
+        busy = true;
+        io.unobserve(more);
+        try {
+          const r = await fetch(pageUrl(next, true), { credentials: 'same-origin' });
+          if (!r.ok) throw new Error(String(r.status));
+          cards.insertAdjacentHTML('beforeend', await r.text());
+          history.replaceState(history.state, '', pageUrl(next, false));
+          render();
+          next++;
+          if (next > last) more.remove();
+          else {
+            more.querySelector('a').href = pageUrl(next, false);
+            io.observe(more);
+          }
+        } catch {
+          // 取れなければ自動で足すのをやめる。「もっと見る」のリンクは残る
+        }
+        busy = false;
+      },
+      { rootMargin: '1000px 0px' },
+    );
+    io.observe(more);
+  }
 
   render();
   restoreScroll();
