@@ -169,8 +169,8 @@ button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
 .rel-meta { display: block; font-size: 13px; }
 .rel-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; overflow-wrap: anywhere; }
 .badge.thread { background: var(--accent-soft); color: var(--accent-soft-text); }
-/* スレッドのカードは、投稿が重なった束に見せる */
-.card.has-thread { margin-bottom: 24px; box-shadow: 0 16px 0 -5px var(--accent-soft), 0 16px 0 -4px var(--accent), 0 33px 0 -10px var(--card), 0 33px 0 -9px var(--accent); }
+/* スレッドのカードは、同じ大きさのカードを右下へずらして重ねた束に見せる（右の余白は束の分。全体の幅はほかのカードと揃う） */
+.card.has-thread { margin: 0 20px 24px 0; box-shadow: 10px 12px 0 -1px var(--card), 10px 12px 0 0 var(--line), 20px 24px 0 -1px var(--card), 20px 24px 0 0 var(--line); }
 .thread-more { display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--accent-soft-text); text-decoration: none; }
 .thread-more:hover { text-decoration: underline; }
 .thread h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 28px 0 10px; }
