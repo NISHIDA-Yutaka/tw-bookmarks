@@ -434,6 +434,8 @@ test('スレッドは一覧で1枚になり、ID・本文・アーカイブが�
     assert.deepEqual(list.map((p) => p.id), [a]);
     const html = listPage('/tw', { posts: list, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
     assert.match(html, /スレッド 2件/);
+    assert.match(html, /class="card has-note has-thread"/);
+    assert.match(html, /↳ ほかに 1 件つながっています/);
     assert.match(html, /メモ 1/);
     assert.ok(html.includes(`class="pickbox" value="${a} ${b}"`));
     assert.ok(html.includes(`class="copyid" data-id="${a} ${b}"`));
