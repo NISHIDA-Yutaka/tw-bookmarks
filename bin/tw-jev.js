@@ -3,7 +3,7 @@
 // API キーは systemd が root の権限で /etc/apps/tw-jev.env から読んで渡す。画面・噛み砕き役・開発用ユーザーからは読めない。
 // プログラムは root の持ち物の /usr/local/lib/tw-jev にあり、ops/setup-jev.sh で置いたときだけ変わる。
 //
-//   POST /judge   { question, context?, items: [{ id, text }] } → { scores: { id: 確率 }, tokens }
+//   POST /judge   { question, context?, items: [{ id, text }] } → { scores: { id: 確率 }, tokens, skipped, reason }
 //   GET  /status  { configured, month, used_tokens, limit_tokens }
 //
 //   JEV_API_KEY          Jev の API キー
@@ -58,6 +58,7 @@ async function handleJudge(body) {
     }
     const out = await judge(apiKey, req);
     addUsage(out.tokens);
+    if (out.skipped) console.error(`${out.skipped} 件を判定できず飛ばしました: ${out.reason}`);
     return out;
   });
   busy = run.catch(() => {});

@@ -207,6 +207,7 @@ async function handle(req, res) {
     const words = q.toLowerCase().split(/[\s　]+/).filter(Boolean);
     let jevMode = url.searchParams.get('mode') === 'jev' && Boolean(q);
     let notice = null;
+    let warning = null;
     let scores = null;
     let list = lib.posts;
     if (noteOnly) list = list.filter((x) => lib.notesFor(x.id).length);
@@ -219,6 +220,7 @@ async function handle(req, res) {
       try {
         scores = pool.length ? await jevSearch(q, pool) : new Map();
         list = list.filter((x) => (scores.get(x.id) ?? 0) >= SEARCH_MIN).sort((a, b) => scores.get(b.id) - scores.get(a.id));
+        if (scores.skipped) warning = `${scores.skipped} 件は Jev が判定できず、結果に入っていません: ${scores.reason}`;
       } catch (err) {
         jevMode = false;
         scores = null;
@@ -258,7 +260,7 @@ async function handle(req, res) {
       jev: jevMode,
       jevReady: jevAvailable(),
       scores,
-      notice,
+      notice: notice ?? warning,
     });
     return page(res, 200, q ? `「${q}」の検索結果` : 'ブックマーク', body, view);
   }

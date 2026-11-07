@@ -458,3 +458,44 @@ test('スレッドは一覧で1枚になり、ID・本文・アーカイブが�
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Jev が受け付けない投稿だけを飛ばし、理由を読める形で返す', async () => {
+  const { checkRequest, judge, describeError } = await import('../lib/jev.js');
+  assert.match(describeError(400, '{"detail":{"code":"max_tokens_exceeded","message":"too long"}}'), /HTTP 400.*max_tokens_exceeded too long/);
+  assert.match(describeError(400, '{"detail":"だめ"}'), /だめ/);
+  assert.match(describeError(422, '{"detail":[{"loc":["body","state"],"msg":"bad","type":"value_error"}]}'), /value_error body\.state bad/);
+  assert.match(describeError(400, '{"detail":{"other":1}}'), /\{"other":1\}/);
+  assert.match(describeError(400, 'not json'), /HTTP 400）$/);
+  assert.ok(checkRequest({ question: 'q', items: [{ id: '1', text: 'a\ud83d' }] }).items[0].text.isWellFormed());
+
+  const items = Array.from({ length: 12 }, (_, i) => ({ id: String(100 + i), text: i === 3 ? 'NG' : `t${i}` }));
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  const reject = (body) => {
+    calls++;
+    const b = JSON.parse(body);
+    if (Object.values(b.state).includes('NG')) return new Response('{"detail":{"code":"nope"}}', { status: 400 });
+    const answers = Object.fromEntries(Object.keys(b.questions).map((k) => [k, { noul: 0.7 }]));
+    return new Response(JSON.stringify({ answers, usage: { input_tokens: 1 } }), { status: 200 });
+  };
+  globalThis.fetch = async (_url, opts) => reject(opts.body);
+  try {
+    const out = await judge('KEY', checkRequest({ question: 'q', items }));
+    assert.equal(Object.keys(out.scores).length, 11);
+    assert.equal(out.scores['103'], undefined);
+    assert.equal(out.skipped, 1);
+    assert.match(out.reason, /nope/);
+
+    // どの投稿も通らないなら、全件を試さず理由を返す
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response('{"detail":{"code":"bad_question"}}', { status: 400 });
+    };
+    const many = Array.from({ length: 200 }, (_, i) => ({ id: String(1000 + i), text: 't' }));
+    await assert.rejects(judge('KEY', checkRequest({ question: 'q', items: many })), /bad_question/);
+    assert.ok(calls < 100, `calls=${calls}`);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
