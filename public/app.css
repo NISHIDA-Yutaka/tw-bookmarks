@@ -329,3 +329,10 @@ button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
 .field input, .field textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; font: inherit; font-size: 15px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 button.danger { background: transparent; color: #c0392b; border-color: #e5b4ae; }
 #pickfolder { font-size: 14px; padding: 4px 8px; border-radius: 6px; }
+.inline-field { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); }
+.field .inline-field input { display: inline-block; width: 6em; margin: 0; }
+.near { margin-top: 10px; }
+.near summary { cursor: pointer; font-size: 14px; color: var(--jev-text); }
+.near .rel-list { margin-top: 8px; }
+.near-item { display: flex; gap: 8px; align-items: center; }
+.near-item a { flex: 1; min-width: 0; }

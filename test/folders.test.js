@@ -113,3 +113,77 @@ test('自動の振り分け: 新しい投稿だけを1回ずつ判定し、70% �
     server.close();
   }
 });
+
+// 長さだけが入った小さな mp4（ftyp と moov/mvhd だけ）
+function tinyMp4(ms) {
+  const box = (type, body) => Buffer.concat([Buffer.from([0, 0, 0, 0]), Buffer.from(type, 'latin1'), body]).fill(0, 0, 0);
+  const sized = (b) => (b.writeUInt32BE(b.length, 0), b);
+  const mvhd = Buffer.alloc(100);
+  mvhd.writeUInt32BE(1000, 12);
+  mvhd.writeUInt32BE(ms, 16);
+  return Buffer.concat([sized(box('ftyp', Buffer.from('isom0000', 'latin1'))), sized(box('moov', sized(box('mvhd', mvhd))))]);
+}
+
+test('mp4 の長さを読む（壊れたものは null）', async () => {
+  const { mp4DurationMs } = await import('../lib/mp4.js');
+  const f = path.join(tmp, 'a.mp4');
+  fs.writeFileSync(f, tinyMp4(26_000));
+  assert.equal(mp4DurationMs(f), 26_000);
+  fs.writeFileSync(f, Buffer.from('not an mp4 at all'));
+  assert.equal(mp4DurationMs(f), null);
+});
+
+test('動画の長さの条件を満たした投稿だけを Jev に渡し、50% で入れる。届かなかったものは惜しかった投稿に残り、条件を変えると判定し直す', async () => {
+  const { dir, mk } = library();
+  const asked = [];
+  // 中継係の場所は読み込んだときに決まるので、前のテストと同じソケットで受け直す
+  const sock = process.env.JEV_SOCKET;
+  fs.rmSync(sock, { force: true });
+  const server = http.createServer((req, res) => {
+    let b = '';
+    req.on('data', (c) => (b += c));
+    req.on('end', () => {
+      const j = JSON.parse(b);
+      asked.push(j.items.map((i) => i.id));
+      const scores = Object.fromEntries(j.items.map((it) => [it.id, it.text.includes('意味なし') ? 0.55 : 0.3]));
+      res.end(JSON.stringify({ scores, tokens: 1 }));
+    });
+  });
+  await new Promise((r) => server.listen(sock, r));
+  try {
+    const short = '1000000000000000031';
+    const long = '1000000000000000032';
+    const meh = '1000000000000000033';
+    for (const [id, ms, text] of [[short, 26_000, '意味なし'], [long, 120_000, '意味なし'], [meh, 30_000, 'ふつう']]) {
+      mk(id, text, { media: [{ type: 'video', file: null }] });
+      fs.mkdirSync(path.join(dir, 'media', id), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'media', id, '1.mp4'), tinyMp4(ms));
+    }
+    applyFolderForm(dir, 'do=create&name=Short&hide=1&rule=R&maxsec=60', new Date('2026-11-08T00:00:00Z'));
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const quiet = { log() {}, error() {} };
+    await runAutoSort(lib, dir, quiet);
+    const st = readFolders(dir);
+    assert.deepEqual(asked.map((a) => a.sort()), [[short, meh]], '2分の動画は Jev に渡さない');
+    assert.equal(st.assign[short]?.by, 'jev');
+    assert.equal(st.assign[long], undefined);
+    assert.equal(st.near[meh]?.p, 0.3);
+    assert.match(foldersPage('/tw', lib.refresh()), /惜しかった投稿 1 件[\s\S]*30%/);
+
+    // 説明を変えると、まだ入っていない投稿を判定し直す（入っている投稿はそのまま）
+    const f = st.folders[0];
+    assert.match(applyFolderForm(dir, `do=update&id=${f.id}&name=Short&hide=1&rule=R2&maxsec=60`), /判定し直します/);
+    const st2 = readFolders(dir);
+    assert.equal(st2.judged[meh], undefined);
+    assert.ok(st2.judged[short]);
+    assert.deepEqual(st2.near, {});
+    // 説明が無くても、長さの条件だけで入れられる
+    applyFolderForm(dir, `do=update&id=${f.id}&name=Short&hide=1&rule=&maxsec=60`);
+    asked.length = 0;
+    await runAutoSort(lib.refresh(), dir, quiet);
+    assert.equal(asked.length, 0);
+    assert.equal(readFolders(dir).assign[meh]?.folder, f.id);
+  } finally {
+    server.close();
+  }
+});
