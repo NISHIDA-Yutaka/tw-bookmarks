@@ -254,6 +254,23 @@
     io.observe(more);
   }
 
+  // 検索欄を空にしたら（× ボタンや全部消したとき）、少し待ってから検索する前の一覧に戻る。続けて打ち直したら戻らない
+  const searchBox = document.querySelector('form.search input[name="q"]');
+  if (searchBox && new URLSearchParams(location.search).get('q')) {
+    let timer = null;
+    const backToList = () => {
+      const u = new URL(searchBox.form.action, location.href);
+      new FormData(searchBox.form).forEach((v, k) => {
+        if (k !== 'q' && k !== 'mode' && v) u.searchParams.set(k, String(v));
+      });
+      location.assign(u.pathname + u.search);
+    };
+    searchBox.addEventListener('input', () => {
+      clearTimeout(timer);
+      if (!searchBox.value.trim()) timer = setTimeout(backToList, 700);
+    });
+  }
+
   // 動画は同時に1本だけ流す（一覧で次の動画を再生したら、前のものは止める）
   document.addEventListener(
     'play',
