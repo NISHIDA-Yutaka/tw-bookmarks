@@ -309,3 +309,23 @@ button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
 }
 .offscreen { position: fixed; left: -9999px; top: 0; }
 [hidden] { display: none !important; }
+
+/* フォルダ */
+.badge.folder { background: var(--quote); color: var(--text); border: 1px solid var(--line); }
+.tab.folder { border-style: dashed; }
+.top-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.top-link { color: inherit; opacity: 0.85; font-size: 14px; text-decoration: none; }
+.top-link.on, .top-link:hover { opacity: 1; text-decoration: underline; }
+.folderform select { font-size: 13px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text); max-width: 11em; }
+.folderform .folderbtn { margin-left: 4px; }
+.js .folderform .folderbtn { display: none; }
+.folder-head { margin: 4px 0 10px; font-weight: 600; }
+.folder-rule, .muted { font-weight: 400; font-size: 13px; color: var(--muted); }
+.page-title { font-size: 20px; margin: 8px 0 12px; }
+.folder-edit { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 12px; }
+.folder-edit h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0 0 8px; }
+.folder-edit.new { border-style: dashed; }
+.field { display: block; font-size: 13px; color: var(--muted); margin: 8px 0; }
+.field input, .field textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; font: inherit; font-size: 15px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+button.danger { background: transparent; color: #c0392b; border-color: #e5b4ae; }
+#pickfolder { font-size: 14px; padding: 4px 8px; border-radius: 6px; }

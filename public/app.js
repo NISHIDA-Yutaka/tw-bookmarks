@@ -156,6 +156,29 @@
     if (e.target.closest && e.target.closest('.cards a')) saveList();
   });
 
+  // フォルダのメニューは選んだらすぐ移す（「移す」ボタンはスクリプトが動かないとき用なので隠す）
+  document.documentElement.classList.add('js');
+  document.addEventListener('change', (e) => {
+    const sel = e.target;
+    if (sel.matches && sel.matches('.folderform select')) sel.form.requestSubmit();
+    if (sel.id === 'pickfolder' && sel.value) {
+      const form = $('pickfolderform');
+      form.elements.ids.value = picked.join(' ');
+      form.elements.folder.value = sel.value === 'none' ? '' : sel.value;
+      form.elements.back.value = here();
+      rememberScroll(form.elements.back.value);
+      picked = [];
+      save(picked);
+      form.submit();
+    }
+  });
+
+  // 消すなど取り消せない操作は確かめる
+  document.addEventListener('submit', (e) => {
+    const msg = e.target.dataset && e.target.dataset.confirm;
+    if (msg && !window.confirm(msg)) e.preventDefault();
+  });
+
   document.addEventListener('submit', (e) => {
     const back = e.target.elements && e.target.elements.back;
     if (!back) return;

@@ -23,6 +23,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | `/var/lib/tw-fetch/token.json` | X の更新用トークン（0700 のフォルダ。tw-fetch 以外は読めない、バックアップにも入らない） | tw-fetch |
 | `/usr/local/lib/tw-fetch/` | 取り込み係のプログラム（`setup-stage3.sh` がデプロイ済みのコードから写す） | root |
 | `/etc/apps/tw-bookmarks.env` | X の Client ID（`TW_CLIENT_ID=`、root だけが読める 0600） | root（sudoedit） |
+| `/var/lib/tw-bookmarks/state/folders.json` | フォルダ、どの投稿がどのフォルダか（手で・Jev で）、Jev が判定済みの投稿 | tw-bookmarks（画面） |
 | `/var/lib/tw-bookmarks/state/related.json` | Jev で判定した関連する投稿の覚え書き（投稿が10件増えたら作り直す） | tw-bookmarks（画面） |
 | `/usr/local/lib/tw-jev/` | Jev の中継係のプログラム（`setup-jev.sh` がデプロイ済みのコードから写す） | root |
 | `/etc/apps/tw-jev.env` | Jev の API キー（`JEV_API_KEY=`、任意で `JEV_MONTHLY_TOKENS=`。root だけが読める 0600） | root（sudoedit） |
@@ -103,6 +104,14 @@ systemctl list-timers tw-fetch.timer        # 次の取り込み予定
 - 取り込み係のプログラムは root の持ち物（`/usr/local/lib/tw-fetch`）。GitHub に push しても、管理者が `setup-stage3.sh` を実行するまで本番の取り込み係は変わらない。tw-fetch はデプロイされたコードを読めない
 - tw-study（噛み砕き役）・tw-bookmarks（画面）・開発用ユーザーは、トークンも Client ID も読めない
 - 取り込みのサービスが書けるのは posts・media・status とトークンの置き場だけ（systemd の ProtectSystem=strict）
+
+## フォルダ
+
+- 画面の「フォルダの管理」で作る・名前を変える・消す。1つの投稿は1つのフォルダにだけ入る（スレッドは全体で）
+- カードのメニュー、または選んでまとめてフォルダに入れる。一覧のタブの横にフォルダのタブが並ぶ
+- 「一覧に出さない」を付けたフォルダの投稿は、アーカイブと同じように一覧から外れる
+- 自動の振り分け（`lib/autosort.js`）: フォルダに「自動で入れる投稿」の説明を書くと、画面のサーバーが5分ごとに、それより後に取り込んだ投稿を Jev に判定させ、70% 以上のいちばん近いフォルダに入れる（「Jev が振り分け」の印）。1件は1回だけ判定する。手で入れた投稿・アーカイブした投稿は動かさない。「保存済みの投稿にも振り分けをかける」で、まだフォルダに入っていない保存済みの投稿も1回ずつ判定する
+- Jev には画像・動画の有無と動画の長さを「[動画 0:42] [画像 2枚]」のように文で渡す。長さは保存した mp4 の中の記録（moov/mvhd）から読む（`lib/mp4.js`）
 
 ## 動画
 

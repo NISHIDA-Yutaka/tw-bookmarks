@@ -17,6 +17,9 @@ import { layout, listPage, cardList, postPage, messagePage, relatedList } from '
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
 import { localRelated, cachedRelated, saveRelated } from './lib/related.js';
 import { diskStatus, diskAlert } from './lib/disk.js';
+import { applyFolderForm, assignPosts, parseAssignForm } from './lib/folders.js';
+import { runAutoSort, pendingPosts } from './lib/autosort.js';
+import { foldersPage } from './lib/render.js';
 
 const PORT = Number(process.env.PORT ?? 3050);
 const LIBRARY_DIR = process.env.LIBRARY_DIR ?? '/var/lib/tw-bookmarks';
@@ -63,7 +66,7 @@ function diskNotice() {
 }
 
 function page(res, status, title, body, view = '') {
-  send(res, status, layout(BASE, { title, body, status: lib.status, view, disk: diskNotice() }));
+  send(res, status, layout(BASE, { title, body, status: lib.status, view, disk: diskNotice(), folders: lib.folders.folders }));
 }
 
 // 動画。ブラウザが途中から読めるよう（シークや Safari の再生に必要）Range に応える
@@ -99,8 +102,8 @@ function sendVideo(req, res, file) {
 
 const MAX_FORM_BYTES = 16 * 1024;
 
-// アーカイブする／戻すボタン（フォームの POST）。終わったら元のページへ戻す
-function handleArchive(req, res) {
+// 画面のフォーム（POST）を読む。ほかのサイトからの送信・形のおかしいもの・大きすぎるものは断る
+function readForm(req, res, done) {
   if (!isSameOrigin(req.headers)) return send(res, 403, 'この画面の外からの操作は受け付けません', 'text/plain; charset=utf-8');
   if (!/^application\/x-www-form-urlencoded\b/.test(req.headers['content-type'] ?? '')) {
     return send(res, 415, 'Unsupported Media Type', 'text/plain');
@@ -117,24 +120,60 @@ function handleArchive(req, res) {
   req.on('end', () => {
     if (res.headersSent) return;
     try {
-      const form = parseArchiveForm(Buffer.concat(chunks).toString('utf8'), BASE);
-      lib.refresh();
-      const ids = form.ids.filter((id) => lib.get(id));
-      if (form.archived === null || !ids.length) return send(res, 303, '', 'text/plain', { Location: form.back });
-      setArchived(LIBRARY_DIR, ids, form.archived);
-      lib.invalidate();
-      send(res, 303, '', 'text/plain', { Location: form.back });
+      done(Buffer.concat(chunks).toString('utf8'));
     } catch (err) {
       console.error(err);
-      page(
-        res,
-        500,
-        '保存できませんでした',
-        messagePage(BASE, 'アーカイブの状態を保存できませんでした。管理者が ops/setup-archive.sh を実行済みか確かめてください。'),
-      );
+      page(res, 500, '保存できませんでした', messagePage(BASE, `保存できませんでした（${err.message}）。管理者が ops/setup-archive.sh を実行済みか確かめてください。`));
     }
   });
 }
+
+// アーカイブする／戻すボタン（フォームの POST）。終わったら元のページへ戻す
+function handleArchive(req, res) {
+  readForm(req, res, (body) => {
+    const form = parseArchiveForm(body, BASE);
+    lib.refresh();
+    const ids = form.ids.filter((id) => lib.get(id));
+    if (form.archived === null || !ids.length) return send(res, 303, '', 'text/plain', { Location: form.back });
+    setArchived(LIBRARY_DIR, ids, form.archived);
+    lib.invalidate();
+    send(res, 303, '', 'text/plain', { Location: form.back });
+  });
+}
+
+// 投稿をフォルダに入れる・外す
+function handleAssign(req, res) {
+  readForm(req, res, (body) => {
+    const form = parseAssignForm(body, BASE);
+    lib.refresh();
+    const ids = form.ids.filter((id) => lib.get(id));
+    if (ids.length) assignPosts(LIBRARY_DIR, ids, form.folder);
+    lib.invalidate();
+    send(res, 303, '', 'text/plain', { Location: form.back });
+  });
+}
+
+// フォルダの管理（作る・変える・消す・保存済みの投稿にも振り分けをかける）
+function handleFolders(req, res) {
+  readForm(req, res, (body) => {
+    let message;
+    try {
+      message = applyFolderForm(LIBRARY_DIR, body);
+    } catch (err) {
+      message = `できませんでした: ${err.message}`;
+    }
+    lib.invalidate();
+    if (message.includes('振り分けをかけます')) setTimeout(autoSort, 1000);
+    send(res, 303, '', 'text/plain', { Location: `${BASE}/folders?msg=${encodeURIComponent(message)}` });
+  });
+}
+
+// 自動の振り分け（数分ごと。新しい投稿が無ければ何もしない）
+function autoSort() {
+  runAutoSort(lib, LIBRARY_DIR).catch((err) => console.error(err));
+}
+setTimeout(autoSort, 30_000).unref();
+setInterval(autoSort, 5 * 60_000).unref();
 
 // Jev は使うたびに費用がかかるので、この画面の中からの操作（とアドレス欄に直接入れたもの）でだけ動かす
 function mayUseJev(headers) {
@@ -161,8 +200,8 @@ async function handleRelated(req, res, id) {
     try {
       const scores = await judge(
         'Is this post about the same specific topic as the item "base", or closely related to it?',
-        cands.map((c) => ({ id: c.id, text: jevText(lib.get(c.id), lib.notesFor(c.id)) })),
-        jevText(post, lib.notesFor(id)),
+        cands.map((c) => ({ id: c.id, text: jevText(lib.get(c.id), lib.notesFor(c.id), lib) })),
+        jevText(post, lib.notesFor(id), lib),
       );
       list = cands.filter((c) => scores.has(c.id)).map((c) => ({ id: c.id, p: Math.round(scores.get(c.id) * 1000) / 1000 }));
       list.sort((a, b) => b.p - a.p);
@@ -187,7 +226,7 @@ async function jevSearch(q, candidates) {
   if (hit && Date.now() - hit.at < 60 * 60 * 1000) return hit.scores;
   const scores = await judge(
     `Does this post match the following request? The request may be in Japanese. Request: ${q}`,
-    candidates.map((p) => ({ id: p.id, text: jevText(p, lib.notesFor(p.id)) })),
+    candidates.map((p) => ({ id: p.id, text: jevText(p, lib.notesFor(p.id), lib) })),
   );
   jevSearches.set(key, { at: Date.now(), scores });
   if (jevSearches.size > 20) jevSearches.delete(jevSearches.keys().next().value);
@@ -208,6 +247,8 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
   if (req.method === 'POST' && p === `${BASE}/archive`) return handleArchive(req, res);
+  if (req.method === 'POST' && p === `${BASE}/folders/assign`) return handleAssign(req, res);
+  if (req.method === 'POST' && p === `${BASE}/folders`) return handleFolders(req, res);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method Not Allowed', 'text/plain');
 
   if (p === '/healthz') return send(res, 200, 'ok', 'text/plain');
@@ -239,6 +280,11 @@ async function handle(req, res) {
 
   lib.refresh();
 
+  if (rest === 'folders') {
+    const msg = (url.searchParams.get('msg') ?? '').slice(0, 200);
+    return page(res, 200, 'フォルダ', foldersPage(BASE, lib, { message: msg, pending: pendingPosts(lib).length, jevReady: jevAvailable() }), 'folders');
+  }
+
   const rel = rest.match(/^related\/(\d{1,25})$/);
   if (rel) return handleRelated(req, res, rel[1]);
 
@@ -253,20 +299,22 @@ async function handle(req, res) {
   if (rest === '') {
     const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
     const noteOnly = url.searchParams.get('note') === '1';
-    const view = ['archived', 'all'].includes(url.searchParams.get('view')) ? url.searchParams.get('view') : '';
+    const folderId = url.searchParams.get('folder') ?? '';
+    const folder = lib.folders.folders.find((f) => f.id === folderId) ?? null;
+    const view = folder ? '' : ['archived', 'all'].includes(url.searchParams.get('view')) ? url.searchParams.get('view') : '';
     const words = q.toLowerCase().split(/[\s　]+/).filter(Boolean);
     let jevMode = url.searchParams.get('mode') === 'jev' && Boolean(q);
     let notice = null;
     let warning = null;
     let scores = null;
-    let list = lib.posts;
+    let list = folder ? lib.posts.filter((x) => x.folder?.id === folder.id) : lib.posts;
     if (noteOnly) list = list.filter((x) => lib.notesFor(x.id).length);
     if (jevMode && !mayUseJev(req.headers)) {
       jevMode = false;
       notice = '「Jev で探す」は、この画面のボタンから押したときだけ動きます。下はふつうの検索の結果です。';
     }
     if (jevMode) {
-      const pool = view === '' ? list.filter((x) => !x.archived_at) : view === 'archived' ? list.filter((x) => x.archived_at) : list;
+      const pool = folder ? list : view === '' ? list.filter((x) => !x.archived_at && !lib.hiddenByFolder(x)) : view === 'archived' ? list.filter((x) => x.archived_at) : list;
       try {
         scores = pool.length ? await jevSearch(q, pool) : new Map();
         list = list.filter((x) => (scores.get(x.id) ?? 0) >= SEARCH_MIN).sort((a, b) => scores.get(b.id) - scores.get(a.id));
@@ -279,8 +327,10 @@ async function handle(req, res) {
     }
     if (!jevMode && words.length) list = list.filter((x) => words.every((w) => x.haystack.includes(w)));
     // 既定ではアーカイブした投稿を外す。外した件数は画面に出す
-    const hidden = view === '' ? collapseThreads(list.filter((x) => x.archived_at)).length : 0;
-    if (view === '') list = list.filter((x) => !x.archived_at);
+    // 一覧ではアーカイブした投稿と「一覧に出さない」フォルダの投稿を外す。外した件数は画面に出す
+    const outOfList = (x) => x.archived_at || lib.hiddenByFolder(x);
+    const hidden = !folder && view === '' ? collapseThreads(list.filter(outOfList)).length : 0;
+    if (!folder && view === '') list = list.filter((x) => !outOfList(x));
     if (view === 'archived') list = list.filter((x) => x.archived_at);
     // スレッドは1枚にまとめる。Jev で探したときは、いちばん当てはまった投稿を代表にする
     list = collapseThreads(list, { first: jevMode });
@@ -307,12 +357,13 @@ async function handle(req, res) {
       page: n,
       pages,
       lib,
+      folder,
       jev: jevMode,
       jevReady: jevAvailable(),
       scores,
       notice: notice ?? warning,
     });
-    return page(res, 200, q ? `「${q}」の検索結果` : 'ブックマーク', body, view);
+    return page(res, 200, q ? `「${q}」の検索結果` : folder ? folder.name : 'ブックマーク', body, folder ? `folder:${folder.id}` : view);
   }
 
   return page(res, 404, '見つかりません', messagePage(BASE, 'ページが見つかりません。'));
