@@ -499,3 +499,59 @@ test('Jev が受け付けない投稿だけを飛ばし、理由を読める形�
     globalThis.fetch = realFetch;
   }
 });
+
+test('動画は video.twimg.com の mp4 のうち、短い辺が 720 までのいちばん良いものを選ぶ', async () => {
+  const { pickVideoVariant, videoUrl } = await import('../lib/media.js');
+  const v = (w, h, rate, host = 'video.twimg.com', type = 'video/mp4') => ({ bit_rate: rate, content_type: type, url: `https://${host}/ext_tw_video/1/pu/vid/avc1/${w}x${h}/a.mp4?tag=12` });
+  assert.match(
+    pickVideoVariant([v(480, 270, 288000), v(1280, 720, 2176000), v(1920, 1080, 10368000), { content_type: 'application/x-mpegURL', url: 'https://video.twimg.com/a.m3u8' }]),
+    /1280x720/,
+  );
+  // 縦長の動画も短い辺で比べる
+  assert.match(pickVideoVariant([v(720, 1280, 2176000), v(1080, 1920, 9000000)]), /720x1280/);
+  // 720 以下が無ければいちばん小さいもの
+  assert.match(pickVideoVariant([v(1920, 1080, 10368000), v(3840, 2160, 20000000)]), /1920x1080/);
+  // GIF は大きさの入らない mp4 が1つ（bit_rate 0）
+  assert.equal(pickVideoVariant([{ bit_rate: 0, content_type: 'video/mp4', url: 'https://video.twimg.com/tweet_video/abc.mp4' }]), 'https://video.twimg.com/tweet_video/abc.mp4');
+  assert.equal(pickVideoVariant([v(1280, 720, 1, 'evil.example.com')]), null);
+  assert.equal(pickVideoVariant(null), null);
+  assert.throws(() => videoUrl('http://video.twimg.com/a.mp4'));
+});
+
+test('API の応答の動画に variants があれば、保存する mp4 の URL を持つ', () => {
+  const page = structuredClone(apiPage);
+  const vid = page.includes.media.find((m) => m.type !== 'photo');
+  assert.ok(vid, 'fixture に動画が要る');
+  vid.variants = [{ bit_rate: 2176000, content_type: 'video/mp4', url: 'https://video.twimg.com/ext_tw_video/9/pu/vid/avc1/1280x720/x.mp4' }];
+  const all = normalizeApiPage(page).flatMap((p) => [...p.media, ...(p.quoted?.media ?? [])]);
+  assert.ok(all.some((m) => m.video_remote === vid.variants[0].url));
+  assert.ok(all.filter((m) => m.type === 'photo').every((m) => !('video_remote' in m)));
+});
+
+test('保存した動画があれば詳細で再生でき、無ければサムネイルのまま。空き容量が少なければ注意を出す', async () => {
+  const { diskAlert, VIDEO_MIN_FREE } = await import('../lib/disk.js');
+  const { layout } = await import('../lib/render.js');
+  const GB = 1024 ** 3;
+  assert.equal(diskAlert({ free: 500 * GB, total: 588 * GB }), null);
+  assert.match(diskAlert({ free: 40 * GB, total: 588 * GB }), /少なくなっています.*20GB を切ると/);
+  assert.match(diskAlert({ free: VIDEO_MIN_FREE - 1, total: 588 * GB }), /動画の保存を止めています/);
+  assert.match(layout('/tw', { title: 't', body: '', status: null, disk: '残り<少し>' }), /空き容量の注意.*残り&lt;少し&gt;/s);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twvid-'));
+  try {
+    const id = '1000000000000000009';
+    writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: '動画', media: [{ type: 'video', file: `${id}/1.jpg` }, { type: 'video', file: `${id}/2.jpg` }], card: null, quoted: null }, { saved_seq: 1 });
+    fs.mkdirSync(path.join(dir, 'media', id), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'media', id, '1.mp4'), 'x');
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const html = postPage('/tw', lib.get(id), lib);
+    assert.ok(html.includes(`<video controls playsinline preload="none" src="/tw/m/${id}/1.mp4" poster="/tw/m/${id}/1.jpg">`));
+    assert.match(html, /動画（サムネイル）/);
+    assert.equal(lib.videoFor({ type: 'video', file: '../../etc/passwd.jpg' }), null);
+    const list = listPage('/tw', { posts: lib.posts, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
+    assert.equal(list.match(/class="vthumb saved"/g).length, 1);
+    assert.equal(list.match(/class="vthumb"/g).length, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

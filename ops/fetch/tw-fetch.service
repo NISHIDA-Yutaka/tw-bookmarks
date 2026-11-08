@@ -18,7 +18,8 @@ StateDirectory=tw-fetch
 StateDirectoryMode=0700
 WorkingDirectory=/usr/local/lib/tw-fetch
 ExecStart=/usr/bin/node /usr/local/lib/tw-fetch/bin/tw-fetch.js
-TimeoutStartSec=15min
+# 動画も保存するので長めに
+TimeoutStartSec=30min
 MemoryMax=256M
 UMask=0027
 

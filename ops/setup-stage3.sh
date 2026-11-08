@@ -6,7 +6,7 @@
 #   1. 取り込み係のプログラムを /usr/local/lib/tw-fetch に置く（root の持ち物。tw-fetch・開発用ユーザーは書き換えられない）
 #   2. tw-fetch をデプロイされたコードのグループから外す（root が置いたプログラムだけを動かすため）
 #   3. Client ID の置き場 /etc/apps/tw-bookmarks.env を確かめる（中身は表示しない）
-#   4. 取り込みのサービスとタイマー、許可用のコマンド（tw-fetch-login / tw-fetch-check）を登録する
+#   4. 取り込みのサービスとタイマー、許可用のコマンド（tw-fetch-login / tw-fetch-check / tw-fetch-videos）を登録する
 #   5. 許可が済んでいれば、1時間ごとの取り込みを始める
 set -euo pipefail
 [[ $(id -u) == 0 ]] || { echo "sudo を付けて実行してください: sudo bash $0" >&2; exit 1; }
@@ -50,6 +50,7 @@ install -o root -g root -m 0644 "$HERE/fetch/tw-fetch.service" /etc/systemd/syst
 install -o root -g root -m 0644 "$HERE/fetch/tw-fetch.timer" /etc/systemd/system/tw-fetch.timer
 install -o root -g root -m 0755 "$HERE/fetch/tw-fetch-login" /usr/local/sbin/tw-fetch-login
 ln -sf tw-fetch-login /usr/local/sbin/tw-fetch-check
+ln -sf tw-fetch-login /usr/local/sbin/tw-fetch-videos
 systemctl daemon-reload
 echo "登録しました"
 

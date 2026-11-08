@@ -16,6 +16,7 @@ import { setArchived, parseArchiveForm, isSameOrigin } from './lib/archive.js';
 import { layout, listPage, cardList, postPage, messagePage, relatedList } from './lib/render.js';
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
 import { localRelated, cachedRelated, saveRelated } from './lib/related.js';
+import { diskStatus, diskAlert } from './lib/disk.js';
 
 const PORT = Number(process.env.PORT ?? 3050);
 const LIBRARY_DIR = process.env.LIBRARY_DIR ?? '/var/lib/tw-bookmarks';
@@ -32,7 +33,7 @@ const IMAGE_TYPES = { jpg: 'image/jpeg', png: 'image/png', gif: 'image/gif', web
 const SECURITY_HEADERS = {
   // 自分のサーバーの CSS・JS・画像だけを許す。投稿に何が書かれていてもスクリプトとして動かない
   'Content-Security-Policy':
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
@@ -46,8 +47,54 @@ function send(res, status, body, type = 'text/html; charset=utf-8', extra = {}) 
   res.end(res.req.method === 'HEAD' ? undefined : body);
 }
 
+// 空き容量の注意（1分ごとに確かめ直す）
+let disk = { at: 0, alert: null };
+function diskNotice() {
+  if (Date.now() - disk.at > 60_000) {
+    let alert = null;
+    try {
+      alert = diskAlert(diskStatus(LIBRARY_DIR));
+    } catch {
+      alert = null;
+    }
+    disk = { at: Date.now(), alert };
+  }
+  return disk.alert;
+}
+
 function page(res, status, title, body, view = '') {
-  send(res, status, layout(BASE, { title, body, status: lib.status, view }));
+  send(res, status, layout(BASE, { title, body, status: lib.status, view, disk: diskNotice() }));
+}
+
+// 動画。ブラウザが途中から読めるよう（シークや Safari の再生に必要）Range に応える
+function sendVideo(req, res, file) {
+  let st;
+  try {
+    st = fs.statSync(file);
+  } catch {
+    return send(res, 404, 'Not Found', 'text/plain');
+  }
+  const headers = { ...SECURITY_HEADERS, 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=31536000, immutable' };
+  const m = (req.headers.range ?? '').match(/^bytes=(\d*)-(\d*)$/);
+  let start = 0;
+  let end = st.size - 1;
+  let status = 200;
+  if (m && (m[1] || m[2])) {
+    if (m[1]) {
+      start = Number(m[1]);
+      if (m[2]) end = Math.min(Number(m[2]), st.size - 1);
+    } else start = Math.max(0, st.size - Number(m[2]));
+    if (start > end || start >= st.size) {
+      res.writeHead(416, { ...headers, 'Content-Range': `bytes */${st.size}` });
+      return res.end();
+    }
+    status = 206;
+    headers['Content-Range'] = `bytes ${start}-${end}/${st.size}`;
+  }
+  headers['Content-Length'] = String(end - start + 1);
+  res.writeHead(status, headers);
+  if (req.method === 'HEAD') return res.end();
+  fs.createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
 }
 
 const MAX_FORM_BYTES = 16 * 1024;
@@ -173,6 +220,9 @@ async function handle(req, res) {
     if (!s) return send(res, 404, 'Not Found', 'text/plain');
     return send(res, 200, fs.readFileSync(s.file), s.type);
   }
+
+  const video = rest.match(/^m\/(\d{1,25})\/([\w-]+)\.mp4$/);
+  if (video) return sendVideo(req, res, path.join(LIBRARY_DIR, 'media', video[1], `${video[2]}.mp4`));
 
   const media = rest.match(/^m\/(\d{1,25})\/([\w-]+)\.(jpg|png|gif|webp)$/);
   if (media) {

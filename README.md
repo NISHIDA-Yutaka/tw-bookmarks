@@ -15,7 +15,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | 場所 | 中身 | 書けるのは |
 | --- | --- | --- |
 | `/var/lib/tw-bookmarks/posts/<投稿ID>.md` | 元の投稿（前付けに投稿者・日時・画像・引用元、本文がその下） | tw-fetch |
-| `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル、リンクカードの画像） | tw-fetch |
+| `/var/lib/tw-bookmarks/media/<投稿ID>/` | 画像（写真は原寸、動画はサムネイル、リンクカードの画像）と動画の本体（`<番号>.mp4`、引用元は `q<番号>.mp4`） | tw-fetch |
 | `/var/lib/tw-bookmarks/notes/*.md` | 噛み砕いたメモ。前付けの `posts` に関係する投稿ID | tw-study（段階2） |
 | `/var/lib/tw-bookmarks/notes/translations/<投稿ID>.md` | 日本語以外の投稿の翻訳。画面は本文の代わりに翻訳を出し（「翻訳」の印付き）、原文は開くと見える | tw-study |
 | `/var/lib/tw-bookmarks/status/fetch.json` | 自動取り込みの結果（段階3） | tw-fetch |
@@ -103,6 +103,19 @@ systemctl list-timers tw-fetch.timer        # 次の取り込み予定
 - 取り込み係のプログラムは root の持ち物（`/usr/local/lib/tw-fetch`）。GitHub に push しても、管理者が `setup-stage3.sh` を実行するまで本番の取り込み係は変わらない。tw-fetch はデプロイされたコードを読めない
 - tw-study（噛み砕き役）・tw-bookmarks（画面）・開発用ユーザーは、トークンも Client ID も読めない
 - 取り込みのサービスが書けるのは posts・media・status とトークンの置き場だけ（systemd の ProtectSystem=strict）
+
+## 動画
+
+- 取り込むときに X API の `variants` から mp4 を選んで保存する（追加の費用なし）。画質は短い辺が 720 までのいちばん良いもの。200MB を超えるものは保存せずサムネイルのまま
+- 取りに行く先は X の動画サーバー（video.twimg.com）の https だけ（`lib/media.js`）
+- 画面は詳細で再生できる（再生を押すまで読み込まない。Range に応えるのでシークもできる）。一覧のサムネイルには ▶ の印（保存済みは濃い）
+- 保存済みの投稿の動画: `sudo tw-fetch-videos` でブックマークを最初から読み直して取りに行く（X の仕様で新しい順に800件まで。約 $0.001 × 件数）。投稿のファイルは書き換えず、置き場に mp4 があるかで見分ける
+- 取り込み係は同時に1つしか動かない（`/var/lib/tw-fetch/run.lock`）。更新用トークンは使うと替わるので、2つが同時に使うと認証が切れるため
+
+## 空き容量
+
+- サーバーの空きが全体の 10% か 30GB の大きいほうを切ると、画面に注意の帯を出す（`lib/disk.js`）
+- 20GB を切ると動画の保存を止める（投稿と画像は保存する）。止めた本数は自動取り込みの注意として出る
 
 ## 意味での検索と関連する投稿（Jev）
 
