@@ -8,7 +8,7 @@
 #   2. ライブラリの置き場 /var/lib/tw-bookmarks を作る（毎日のサーバー外バックアップに自動で入る場所）
 #   3. 画面のサービス app-tw-bookmarks を登録する
 #   4. Caddy で、Tailscale 側の https://kagoya.taild08d78.ts.net/tw/ を画面に渡す（それ以外は今まで通り zen-do）
-#   5. deploy-app で画面を出す
+#   5. sudo -u deploy deploy-app tw-bookmarks で画面を出す
 set -euo pipefail
 [[ $(id -u) == 0 ]] || { echo "sudo を付けて実行してください: sudo bash $0" >&2; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)

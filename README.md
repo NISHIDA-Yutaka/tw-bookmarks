@@ -131,7 +131,7 @@ Jev（Typesafe AI, Inc.・米国。送った内容を学習に使わないと明
   - Jev の答えは確率だけなので、投稿に紛れた指示で何かが実行されることはない
   - 「Jev で探す」と関連の判定は、この画面の中からの操作（Sec-Fetch-Site）でだけ動く
 - 費用の目安: 1回の検索（数百件）で約6万トークン ≒ $0.003。関連の判定は1投稿 約1万トークン ≒ $0.0004（2回目からは覚え書きを使う）
-- 準備: `sudoedit /etc/apps/tw-jev.env` に `JEV_API_KEY=` を書き、`sudo bash /srv/apps/tw-bookmarks/current/ops/setup-jev.sh`。中継係を変えたときも deploy-app のあとにこれを実行する
+- 準備: `sudoedit /etc/apps/tw-jev.env` に `JEV_API_KEY=` を書き、`sudo bash /srv/apps/tw-bookmarks/current/ops/setup-jev.sh`。中継係を変えたときも `sudo -u deploy deploy-app tw-bookmarks` のあとにこれを実行する
 - 中継係が動いていなければ、「Jev で探す」ボタンは出ず、関連する投稿は言葉の重なりだけで出す
 
 ## 開発

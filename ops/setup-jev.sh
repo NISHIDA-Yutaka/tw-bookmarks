@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Jev（意味での検索・関連する投稿）のサーバー側の準備。管理者（ubuntu）が sudo で実行する。
 # デプロイ済みのコードから実行する: sudo bash /srv/apps/tw-bookmarks/current/ops/setup-jev.sh
-# 何度実行してもよい。中継係のプログラムを更新したいときも、deploy-app のあとにこれを実行する。
+# 何度実行してもよい。中継係のプログラムを更新したいときも、sudo -u deploy deploy-app tw-bookmarks のあとにこれを実行する。
 #
 #   1. 中継係のプログラムを /usr/local/lib/tw-jev に置く（root の持ち物。開発用ユーザーもデプロイも書き換えられない）
 #   2. API キーの置き場 /etc/apps/tw-jev.env を確かめる（中身は表示しない）

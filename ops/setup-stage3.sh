@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 段階3（自動で増える）のサーバー側の準備。管理者（ubuntu）が sudo で実行する。
 # デプロイ済みのコードから実行する: sudo bash /srv/apps/tw-bookmarks/current/ops/setup-stage3.sh
-# 何度実行してもよい。取り込み係のプログラムを更新したいときも、deploy-app のあとにこれを実行する。
+# 何度実行してもよい。取り込み係のプログラムを更新したいときも、sudo -u deploy deploy-app tw-bookmarks のあとにこれを実行する。
 #
 #   1. 取り込み係のプログラムを /usr/local/lib/tw-fetch に置く（root の持ち物。tw-fetch・開発用ユーザーは書き換えられない）
 #   2. tw-fetch をデプロイされたコードのグループから外す（root が置いたプログラムだけを動かすため）
