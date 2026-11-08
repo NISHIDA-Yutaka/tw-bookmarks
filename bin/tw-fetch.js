@@ -6,8 +6,9 @@
 //   結果は <ライブラリ>/status/fetch.json に書き、失敗していれば画面に赤い帯が出る。
 //
 //   オプション: --check   1ページ（10件）だけ受け取り、どんな項目が取れたかを表示する。ライブラリには書かない
-//              --videos  ブックマークを最初から読み直し（X の仕様で新しい順に800件まで）、保存済みの投稿で
-//                        まだ無い動画だけを保存する。投稿のファイルは書き換えない（1回だけ使う。約 $0.001 × 件数）
+//              --media   ブックマークを最初から読み直し（X の仕様で新しい順に800件まで）、保存済みの投稿で
+//                        まだ無い画像・動画・リンクカードの画像だけを保存する。投稿のファイルは書き換えない
+//                        （取れなかった分を取り直すときに使う。約 $0.001 × 件数）。--videos も同じ
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +24,7 @@ const PAGE_SIZE = 10;
 // 1回で読むのは最大10ページ（100件）。それより多く溜まっていたら、次の回に続きを読まずに知らせる
 const MAX_PAGES = 10;
 const check = process.argv.includes('--check');
-const videos = process.argv.includes('--videos');
+const videos = process.argv.includes('--media') || process.argv.includes('--videos');
 const statusFile = path.join(LIBRARY_DIR, 'status', 'fetch.json');
 
 function readStatus() {
@@ -51,7 +52,7 @@ async function run() {
   const { accessToken, refreshToken } = await refresh(clientId, tok.refresh_token);
   saveToken({ ...tok, refresh_token: refreshToken, refreshed_at: new Date().toISOString() });
 
-  if (videos) return backfillVideos(accessToken, tok.user_id);
+  if (videos) return backfillMedia(accessToken, tok.user_id);
 
   const fresh = [];
   const seen = new Set();
@@ -80,10 +81,12 @@ async function run() {
   let seq = maxSavedSeq(LIBRARY_DIR);
   let added = 0;
   let mediaFailed = 0;
+  let mediaError = null;
   let videoSkipped = 0;
   const { savePost } = imageSaver(LIBRARY_DIR, {
     onError(id, err) {
       mediaFailed++;
+      mediaError ??= err.message;
       console.error(`画像・動画を保存できませんでした（投稿 ${id}）: ${err.message}`);
     },
     onVideoSkipped() {
@@ -95,17 +98,21 @@ async function run() {
     if (await savePost(post, { saved_seq: ++seq, source: 'api', fetched_at: fetchedAt })) added++;
   }
   const truncated = !reachedKnown && pages >= MAX_PAGES;
-  return { added, pages, mediaFailed, truncated, videoSkipped };
+  return { added, pages, mediaFailed, mediaError, truncated, videoSkipped };
 }
 
-// 保存済みの投稿の動画を、あとから取りに行く（--videos）
-async function backfillVideos(accessToken, userId) {
+// 保存済みの投稿の画像・動画を、あとから取りに行く（--media）
+const exists = (id, name, exts) => exts.some((ext) => fs.existsSync(path.join(LIBRARY_DIR, 'media', id, `${name}.${ext}`)));
+const IMAGE_EXTS = ['jpg', 'png', 'gif', 'webp'];
+
+async function backfillMedia(accessToken, userId) {
+  let images = 0;
   let saved = 0;
   let failed = 0;
   let notLocal = 0;
   let pages = 0;
   let paginationToken;
-  const { saveVideo } = imageSaver(LIBRARY_DIR, {
+  const { saveVideo, saveImage } = imageSaver(LIBRARY_DIR, {
     onError(id, err) {
       failed++;
       console.error(`  投稿 ${id}: 保存できませんでした（${err.message}）`);
@@ -120,27 +127,35 @@ async function backfillVideos(accessToken, userId) {
         notLocal++;
         continue;
       }
-      const lists = [['', p.media], ['q', p.quoted && !p.quoted.unavailable ? p.quoted.media : []]];
-      for (const [prefix, media] of lists) {
+      const quoted = p.quoted && !p.quoted.unavailable ? p.quoted : null;
+      for (const [prefix, media, card] of [['', p.media, p.card], ['q', quoted?.media ?? [], quoted?.card]]) {
         for (const [i, m] of (media ?? []).entries()) {
-          if (!m.video_remote) continue;
           const name = `${prefix}${i + 1}`;
-          if (fs.existsSync(path.join(LIBRARY_DIR, 'media', p.id, `${name}.mp4`))) continue;
+          if (!exists(p.id, name, IMAGE_EXTS) && (await saveImage(p.id, m.remote, m.type === 'photo' ? 'orig' : 'large', name))) {
+            images++;
+            console.log(`  投稿 ${p.id}: 画像 ${name} を保存しました`);
+          }
+          if (!m.video_remote || exists(p.id, name, ['mp4'])) continue;
           if (!canSaveVideo(LIBRARY_DIR)) {
             console.error('サーバーの空き容量が 20GB を切ったので、動画の保存を止めました');
-            return { backfill: true, saved, failed, notLocal, pages, stopped: true };
+            return { backfill: true, images, saved, failed, notLocal, pages, stopped: true };
           }
           if (await saveVideo(p.id, m.video_remote, name)) {
             saved++;
             console.log(`  投稿 ${p.id}: 動画 ${name} を保存しました`);
           }
         }
+        const cardName = `${prefix}card`;
+        if (card?.image_remote && !exists(p.id, cardName, IMAGE_EXTS) && (await saveImage(p.id, card.image_remote, null, cardName))) {
+          images++;
+          console.log(`  投稿 ${p.id}: リンクカードの画像を保存しました`);
+        }
       }
     }
     paginationToken = typeof res?.meta?.next_token === 'string' ? res.meta.next_token : null;
     if (!paginationToken) break;
   }
-  return { backfill: true, saved, failed, notLocal, pages, stopped: false };
+  return { backfill: true, images, saved, failed, notLocal, pages, stopped: false };
 }
 
 function printCheck(res, posts) {
@@ -194,10 +209,10 @@ const startedAt = new Date().toISOString();
 try {
   const result = await run();
   if (result?.backfill) {
-    const { saved, failed, notLocal, pages, stopped } = result;
-    console.log(`動画: ${saved} 本を保存しました（${pages} ページ読みました${failed ? `、${failed} 本は保存できず` : ''}${notLocal ? `、取り込み前の投稿 ${notLocal} 件は飛ばしました` : ''}${stopped ? '、空き容量が足りず途中で止めました' : ''}）`);
+    const { images, saved, failed, notLocal, pages, stopped } = result;
+    console.log(`画像 ${images} 枚・動画 ${saved} 本を保存しました（${pages} ページ読みました${failed ? `、${failed} 本は保存できず` : ''}${notLocal ? `、取り込み前の投稿 ${notLocal} 件は飛ばしました` : ''}${stopped ? '、空き容量が足りず途中で止めました' : ''}）`);
   } else if (result) {
-    const { added, pages, mediaFailed, truncated, videoSkipped } = result;
+    const { added, pages, mediaFailed, mediaError, truncated, videoSkipped } = result;
     writeStatus({
       last_run_at: startedAt,
       last_success: new Date().toISOString(),
@@ -208,7 +223,9 @@ try {
         ? `前回の取り込みから ${MAX_PAGES * PAGE_SIZE} 件以上ブックマークが増えていたため、古い分の一部を取り込めていない可能性があります`
         : videoSkipped
           ? `サーバーの空き容量が足りないため、動画 ${videoSkipped} 本を保存しませんでした（サムネイルは保存済み）`
-          : null,
+          : mediaFailed
+            ? `画像・動画 ${mediaFailed} 件を保存できませんでした（${mediaError}）。投稿は保存済み。原因を直したら sudo tw-fetch-media で取り直せます`
+            : null,
     });
     console.log(`取り込み: ${added} 件（${pages} ページ読みました${mediaFailed ? `、画像 ${mediaFailed} 件は保存できず` : ''}）`);
   }

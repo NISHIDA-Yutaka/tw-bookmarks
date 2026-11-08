@@ -562,3 +562,37 @@ test('保存した動画があれば詳細で再生でき、無ければサム�
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('フォルダは setgid を付けずに作り、あとから置き場に入った画像も画面で見つける', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twfill-'));
+  try {
+    const id = '1000000000000000007';
+    const q = { id: '1000000000000000006', url: 'https://x.com/i/status/1000000000000000006', author: { handle: 'v' }, text: 'q', media: [{ type: 'photo', file: null }], card: { title: 'c', image_file: null } };
+    writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: 't', media: [{ type: 'photo', file: null }, { type: 'video', file: null }], card: { title: 'k', image_file: null }, quoted: q }, { saved_seq: 1 });
+    const before = fs.readFileSync(path.join(dir, 'posts', `${id}.md`), 'utf8');
+    for (const n of ['1.jpg', '2.png', 'card.jpg', 'q1.webp', 'qcard.jpg']) {
+      fs.mkdirSync(path.join(dir, 'media', id), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'media', id, n), 'x');
+    }
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const p = lib.get(id);
+    assert.deepEqual(p.media.map((m) => m.file), [`${id}/1.jpg`, `${id}/2.png`]);
+    assert.equal(p.card.image_file, `${id}/card.jpg`);
+    assert.equal(p.quoted.media[0].file, `${id}/q1.webp`);
+    assert.equal(p.quoted.card.image_file, `${id}/qcard.jpg`);
+    assert.equal(fs.readFileSync(path.join(dir, 'posts', `${id}.md`), 'utf8'), before);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('取り込みが作るフォルダには setgid を付けない（RestrictSUIDSGID で拒否されるため）', async () => {
+  const { saveMedia } = await import('../lib/library.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twdir-'));
+  try {
+    saveMedia(dir, '1000000000000000005', '1', 'jpg', Buffer.from('x'));
+    assert.equal(fs.statSync(path.join(dir, 'media', '1000000000000000005')).mode & 0o7000, 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
