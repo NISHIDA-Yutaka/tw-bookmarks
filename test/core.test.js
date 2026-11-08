@@ -596,3 +596,24 @@ test('取り込みが作るフォルダには setgid を付けない（RestrictS
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('投稿を ID で読むのは数字の ID を1〜100件だけ', async () => {
+  const { getPosts } = await import('../lib/twapi.js');
+  assert.throws(() => getPosts('t', []));
+  assert.throws(() => getPosts('t', ['1', '2,3']));
+  assert.throws(() => getPosts('t', Array.from({ length: 101 }, (_, i) => String(i))));
+  const realFetch = globalThis.fetch;
+  let seen;
+  globalThis.fetch = async (url) => {
+    seen = new URL(url);
+    return new Response('{"data":[]}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    await getPosts('t', ['1', '2']);
+    assert.equal(seen.origin + seen.pathname, 'https://api.x.com/2/tweets');
+    assert.equal(seen.searchParams.get('ids'), '1,2');
+    assert.match(seen.searchParams.get('media.fields'), /variants/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

@@ -8,15 +8,17 @@
 //   オプション: --check   1ページ（10件）だけ受け取り、どんな項目が取れたかを表示する。ライブラリには書かない
 //              --media   ブックマークを最初から読み直し（X の仕様で新しい順に800件まで）、保存済みの投稿で
 //                        まだ無い画像・動画・リンクカードの画像だけを保存する。投稿のファイルは書き換えない
-//                        （取れなかった分を取り直すときに使う。約 $0.001 × 件数）。--videos も同じ
+//                        （取れなかった分を取り直すときに使う。約 $0.001 × 件数）。--videos も同じ。
+//                        そのあと、まだ足りない投稿（X でブックマークを外したもの・引用元）の件数と費用を出す
+//              --lookup  （--media と一緒に）足りない投稿を ID で直接読んで取りに行く（1件 $0.005）
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { canSaveVideo } from '../lib/disk.js';
-import { refresh, getBookmarks, ApiError } from '../lib/twapi.js';
+import { refresh, getBookmarks, getPosts, ApiError } from '../lib/twapi.js';
 import { loadToken, saveToken, TOKEN_DIR } from '../lib/token-store.js';
 import { normalizeApiPage } from '../lib/normalize-api.js';
-import { hasPost, maxSavedSeq } from '../lib/library.js';
+import { hasPost, maxSavedSeq, Library } from '../lib/library.js';
 import { imageSaver } from '../lib/ingest.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR ?? '/var/lib/tw-bookmarks';
@@ -25,6 +27,7 @@ const PAGE_SIZE = 10;
 const MAX_PAGES = 10;
 const check = process.argv.includes('--check');
 const videos = process.argv.includes('--media') || process.argv.includes('--videos');
+const lookup = process.argv.includes('--lookup');
 const statusFile = path.join(LIBRARY_DIR, 'status', 'fetch.json');
 
 function readStatus() {
@@ -106,56 +109,91 @@ const exists = (id, name, exts) => exts.some((ext) => fs.existsSync(path.join(LI
 const IMAGE_EXTS = ['jpg', 'png', 'gif', 'webp'];
 
 async function backfillMedia(accessToken, userId) {
-  let images = 0;
-  let saved = 0;
-  let failed = 0;
-  let notLocal = 0;
-  let pages = 0;
-  let paginationToken;
+  const r = { backfill: true, images: 0, saved: 0, failed: 0, notLocal: 0, pages: 0, stopped: false, missing: 0, looked: 0, gone: 0 };
   const { saveVideo, saveImage } = imageSaver(LIBRARY_DIR, {
     onError(id, err) {
-      failed++;
+      r.failed++;
       console.error(`  投稿 ${id}: 保存できませんでした（${err.message}）`);
     },
   });
-  // X の仕様で、ブックマークは新しい順に800件までしか読めない
-  while (pages < 8) {
-    const res = await getBookmarks(accessToken, userId, { maxResults: 100, paginationToken });
-    pages++;
+
+  // owner の置き場に、prefix（'' か引用元の 'q'）の名前で、無いものだけ保存する。容量が足りなければ false
+  async function fill(owner, prefix, media, card) {
+    for (const [i, m] of (media ?? []).entries()) {
+      const name = `${prefix}${i + 1}`;
+      if (!exists(owner, name, IMAGE_EXTS) && (await saveImage(owner, m.remote, m.type === 'photo' ? 'orig' : 'large', name))) {
+        r.images++;
+        console.log(`  投稿 ${owner}: 画像 ${name} を保存しました`);
+      }
+      if (!m.video_remote || exists(owner, name, ['mp4'])) continue;
+      if (!canSaveVideo(LIBRARY_DIR)) {
+        console.error('サーバーの空き容量が 20GB を切ったので、動画の保存を止めました');
+        r.stopped = true;
+        return false;
+      }
+      if (await saveVideo(owner, m.video_remote, name)) {
+        r.saved++;
+        console.log(`  投稿 ${owner}: 動画 ${name} を保存しました`);
+      }
+    }
+    const cardName = `${prefix}card`;
+    if (card?.image_remote && !exists(owner, cardName, IMAGE_EXTS) && (await saveImage(owner, card.image_remote, null, cardName))) {
+      r.images++;
+      console.log(`  投稿 ${owner}: リンクカードの画像を保存しました`);
+    }
+    return true;
+  }
+
+  // 1. ブックマーク一覧を読み直す（X の仕様で新しい順に800件まで）
+  while (r.pages < 8) {
+    const res = await getBookmarks(accessToken, userId, { maxResults: 100, paginationToken: r.token });
+    r.pages++;
     for (const p of normalizeApiPage(res)) {
       if (!hasPost(LIBRARY_DIR, p.id)) {
-        notLocal++;
+        r.notLocal++;
         continue;
       }
       const quoted = p.quoted && !p.quoted.unavailable ? p.quoted : null;
-      for (const [prefix, media, card] of [['', p.media, p.card], ['q', quoted?.media ?? [], quoted?.card]]) {
-        for (const [i, m] of (media ?? []).entries()) {
-          const name = `${prefix}${i + 1}`;
-          if (!exists(p.id, name, IMAGE_EXTS) && (await saveImage(p.id, m.remote, m.type === 'photo' ? 'orig' : 'large', name))) {
-            images++;
-            console.log(`  投稿 ${p.id}: 画像 ${name} を保存しました`);
-          }
-          if (!m.video_remote || exists(p.id, name, ['mp4'])) continue;
-          if (!canSaveVideo(LIBRARY_DIR)) {
-            console.error('サーバーの空き容量が 20GB を切ったので、動画の保存を止めました');
-            return { backfill: true, images, saved, failed, notLocal, pages, stopped: true };
-          }
-          if (await saveVideo(p.id, m.video_remote, name)) {
-            saved++;
-            console.log(`  投稿 ${p.id}: 動画 ${name} を保存しました`);
-          }
-        }
-        const cardName = `${prefix}card`;
-        if (card?.image_remote && !exists(p.id, cardName, IMAGE_EXTS) && (await saveImage(p.id, card.image_remote, null, cardName))) {
-          images++;
-          console.log(`  投稿 ${p.id}: リンクカードの画像を保存しました`);
-        }
-      }
+      if (!(await fill(p.id, '', p.media, p.card))) return r;
+      if (quoted && !(await fill(p.id, 'q', quoted.media, quoted.card))) return r;
     }
-    paginationToken = typeof res?.meta?.next_token === 'string' ? res.meta.next_token : null;
-    if (!paginationToken) break;
+    r.token = typeof res?.meta?.next_token === 'string' ? res.meta.next_token : null;
+    if (!r.token) break;
   }
-  return { backfill: true, images, saved, failed, notLocal, pages, stopped: false };
+  delete r.token;
+
+  // 2. まだ足りない投稿（X でブックマークを外したもの、引用元）。読む ID → [置き場の投稿, 名前の頭]
+  const lib = new Library(LIBRARY_DIR, { ttlMs: 0 }).refresh();
+  const lacks = (owner, prefix, media, card) =>
+    (media ?? []).some((m, i) => !m.file || (m.type !== 'photo' && !exists(owner, `${prefix}${i + 1}`, ['mp4']))) || Boolean(card?.image_remote && !card.image_file);
+  const want = new Map();
+  const add = (id, owner, prefix) => {
+    if (!want.has(id)) want.set(id, []);
+    want.get(id).push({ owner, prefix });
+  };
+  for (const p of lib.posts) {
+    if (lacks(p.id, '', p.media, p.card)) add(p.id, p.id, '');
+    const q = p.quoted && !p.quoted.unavailable ? p.quoted : null;
+    if (q && /^\d{1,25}$/.test(q.id ?? '') && lacks(p.id, 'q', q.media, q.card)) add(q.id, p.id, 'q');
+  }
+  r.missing = want.size;
+  if (!want.size || !lookup) return r;
+
+  const ids = [...want.keys()];
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const got = new Map(normalizeApiPage(await getPosts(accessToken, chunk)).map((p) => [p.id, p]));
+    r.looked += chunk.length;
+    for (const id of chunk) {
+      const post = got.get(id);
+      if (!post) {
+        r.gone++;
+        continue;
+      }
+      for (const { owner, prefix } of want.get(id)) if (!(await fill(owner, prefix, post.media, post.card))) return r;
+    }
+  }
+  return r;
 }
 
 function printCheck(res, posts) {
@@ -209,8 +247,12 @@ const startedAt = new Date().toISOString();
 try {
   const result = await run();
   if (result?.backfill) {
-    const { images, saved, failed, notLocal, pages, stopped } = result;
-    console.log(`画像 ${images} 枚・動画 ${saved} 本を保存しました（${pages} ページ読みました${failed ? `、${failed} 本は保存できず` : ''}${notLocal ? `、取り込み前の投稿 ${notLocal} 件は飛ばしました` : ''}${stopped ? '、空き容量が足りず途中で止めました' : ''}）`);
+    const { images, saved, failed, notLocal, pages, stopped, missing, looked, gone } = result;
+    console.log(`画像 ${images} 枚・動画 ${saved} 本を保存しました（ブックマーク一覧を ${pages} ページ読みました${looked ? `、投稿 ${looked} 件を ID で読みました` : ''}${failed ? `、${failed} 件は保存できず` : ''}${notLocal ? `、取り込み前の投稿 ${notLocal} 件は飛ばしました` : ''}${gone ? `、${gone} 件は X で消えていて読めませんでした` : ''}${stopped ? '、空き容量が足りず途中で止めました' : ''}）`);
+    if (missing && !lookup) {
+      console.log(`まだ画像・動画が足りない投稿が ${missing} 件あります（X でブックマークを外したものや引用元）。`);
+      console.log(`ID で直接読んで取りに行くには: sudo tw-fetch-media --lookup（費用の目安 $${(missing * 0.005).toFixed(2)}、1件 $0.005）`);
+    }
   } else if (result) {
     const { added, pages, mediaFailed, mediaError, truncated, videoSkipped } = result;
     writeStatus({
