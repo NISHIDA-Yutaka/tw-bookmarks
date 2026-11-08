@@ -540,17 +540,24 @@ test('保存した動画があれば詳細で再生でき、無ければサム�
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twvid-'));
   try {
     const id = '1000000000000000009';
-    writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: '動画', media: [{ type: 'video', file: `${id}/1.jpg` }, { type: 'video', file: `${id}/2.jpg` }], card: null, quoted: null }, { saved_seq: 1 });
+    // 3つめはサムネイルが無い動画（X API から取り込んだもので起きていた）
+    const q = { id: '1000000000000000008', url: 'https://x.com/i/status/1000000000000000008', author: { handle: 'v' }, text: '引用元', media: [{ type: 'video', file: null }] };
+    writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: '動画', media: [{ type: 'video', file: `${id}/1.jpg` }, { type: 'video', file: `${id}/2.jpg` }, { type: 'video', file: null }], card: null, quoted: q }, { saved_seq: 1 });
     fs.mkdirSync(path.join(dir, 'media', id), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'media', id, '1.mp4'), 'x');
+    for (const n of ['1', '3', 'q1']) fs.writeFileSync(path.join(dir, 'media', id, `${n}.mp4`), 'x');
     const lib = new Library(dir, { ttlMs: 0 }).refresh();
     const html = postPage('/tw', lib.get(id), lib);
     assert.ok(html.includes(`<video controls playsinline preload="none" src="/tw/m/${id}/1.mp4" poster="/tw/m/${id}/1.jpg">`));
     assert.match(html, /動画（サムネイル）/);
-    assert.equal(lib.videoFor({ type: 'video', file: '../../etc/passwd.jpg' }), null);
+    assert.ok(html.includes(`<video controls playsinline preload="metadata" src="/tw/m/${id}/3.mp4">`));
+    assert.ok(html.includes(`src="/tw/m/${id}/q1.mp4"`));
+    assert.equal(lib.videoFor('../..', '1', { type: 'video' }), null);
+    assert.equal(lib.videoFor(id, '../1', { type: 'video' }), null);
+    assert.equal(lib.videoFor(id, '1', { type: 'photo' }), null);
     const list = listPage('/tw', { posts: lib.posts, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
     assert.equal(list.match(/class="vthumb saved"/g).length, 1);
     assert.equal(list.match(/class="vthumb"/g).length, 1);
+    assert.equal(list.match(/class="vthumb saved noimg"/g).length, 1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
