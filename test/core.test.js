@@ -555,9 +555,10 @@ test('保存した動画があれば詳細で再生でき、無ければサム�
     assert.equal(lib.videoFor(id, '../1', { type: 'video' }), null);
     assert.equal(lib.videoFor(id, '1', { type: 'photo' }), null);
     const list = listPage('/tw', { posts: lib.posts, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
-    assert.equal(list.match(/class="vthumb saved"/g).length, 1);
+    // 一覧でも保存した動画はその場で再生でき、保存していない動画はサムネイルに印
+    assert.ok(list.includes(`<video controls playsinline preload="none" src="/tw/m/${id}/1.mp4" poster="/tw/m/${id}/1.jpg">`));
+    assert.ok(list.includes(`<video controls playsinline preload="metadata" src="/tw/m/${id}/3.mp4">`));
     assert.equal(list.match(/class="vthumb"/g).length, 1);
-    assert.equal(list.match(/class="vthumb saved noimg"/g).length, 1);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

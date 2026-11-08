@@ -254,6 +254,18 @@
     io.observe(more);
   }
 
+  // 動画は同時に1本だけ流す（一覧で次の動画を再生したら、前のものは止める）
+  document.addEventListener(
+    'play',
+    (e) => {
+      if (e.target.tagName !== 'VIDEO') return;
+      document.querySelectorAll('video').forEach((v) => {
+        if (v !== e.target && !v.paused) v.pause();
+      });
+    },
+    true,
+  );
+
   render();
   restoreScroll();
 })();
