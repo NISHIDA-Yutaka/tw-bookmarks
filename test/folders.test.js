@@ -169,6 +169,7 @@ test('動画の長さの条件を満たした投稿だけを Jev に渡し、50%
     assert.equal(st.assign[long], undefined);
     assert.equal(st.near[meh]?.p, 0.3);
     assert.match(foldersPage('/tw', lib.refresh()), /惜しかった投稿 1 件[\s\S]*30%/);
+    assert.match(foldersPage('/tw', lib.refresh()), /最近 Jev が入れた投稿 1 件[\s\S]*55%[\s\S]*出す/);
 
     // 説明を変えると、まだ入っていない投稿を判定し直す（入っている投稿はそのまま）
     const f = st.folders[0];
