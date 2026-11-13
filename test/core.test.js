@@ -564,6 +564,20 @@ test('保存した動画があれば詳細で再生でき、無ければサム�
   }
 });
 
+test('一覧の画像は大きく開くためのリンクになる', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twimg-'));
+  try {
+    const id = '1000000000000000019';
+    writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: '画像', media: [{ type: 'photo', file: `${id}/1.jpg`, alt: '<b>' }, { type: 'photo', file: `${id}/2.jpg` }], card: null, quoted: null }, { saved_seq: 1 });
+    const lib = new Library(dir, { ttlMs: 0 }).refresh();
+    const list = listPage('/tw', { posts: lib.posts, total: 1, q: '', noteOnly: false, back: '/tw/', page: 1, pages: 1, lib });
+    assert.equal(list.match(/<a class="zoom" href="\/tw\/m\/\d+\/\d\.jpg"/g).length, 2);
+    assert.ok(list.includes('alt="&lt;b&gt;"'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('フォルダは setgid を付けずに作り、あとから置き場に入った画像も画面で見つける', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'twfill-'));
   try {

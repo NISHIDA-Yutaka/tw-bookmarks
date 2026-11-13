@@ -209,12 +209,32 @@ button.jev { background: var(--jev); border-color: var(--jev); color: #fff; }
 /* 一覧の画像: 1枚なら幅いっぱい、2枚以上は2列 */
 .thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; border-radius: 10px; overflow: hidden; max-width: 560px; }
 .thumbs img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.thumbs a.zoom { display: block; cursor: zoom-in; }
+.thumbs.n3 a.zoom:first-child { grid-row: span 2; }
+.thumbs.n3 a.zoom:first-child img { aspect-ratio: auto; height: 100%; }
+
+/* 画像を大きく開く窓 */
+html.viewer-open { overflow: hidden; }
+dialog.viewer { border: 0; padding: 0; margin: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; background: transparent; color: #fff; }
+dialog.viewer::backdrop { background: rgba(0, 0, 0, 0.88); }
+dialog.viewer[open] { display: flex; align-items: center; justify-content: center; }
+dialog.viewer figure { margin: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px; box-sizing: border-box; gap: 8px; }
+dialog.viewer img { max-width: 100%; max-height: 100%; min-height: 0; object-fit: contain; border-radius: 6px; }
+dialog.viewer figcaption { font-size: 13px; opacity: 0.8; max-width: 640px; text-align: center; }
+dialog.viewer figcaption:empty { display: none; }
+dialog.viewer button { position: absolute; background: rgba(0, 0, 0, 0.45); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; width: 44px; height: 44px; padding: 0; font-size: 26px; line-height: 1; cursor: pointer; }
+dialog.viewer button:hover { background: rgba(255, 255, 255, 0.18); }
+dialog.viewer .v-close { top: 12px; right: 12px; }
+dialog.viewer .v-prev, dialog.viewer .v-next { top: 50%; transform: translateY(-50%); display: none; }
+dialog.viewer .v-prev { left: 12px; }
+dialog.viewer .v-next { right: 12px; }
+dialog.viewer.many .v-prev, dialog.viewer.many .v-next { display: block; }
+dialog.viewer .v-count { position: absolute; top: 12px; left: 0; right: 0; margin: 0; text-align: center; font-size: 14px; line-height: 44px; opacity: 0.8; pointer-events: none; }
 .thumbs video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; display: block; background: #000; }
 /* 1本だけの動画は縦長でも見やすいよう高さに余裕を持たせる */
 .thumbs.n1 video { aspect-ratio: auto; max-height: 70vh; }
 .thumbs.n1 { grid-template-columns: 1fr; }
 .thumbs.n1 img { aspect-ratio: auto; max-height: 520px; }
-.thumbs.n3 img:first-child { grid-row: span 2; aspect-ratio: auto; height: 100%; }
 
 /* リンクカード */
 .linkcard {

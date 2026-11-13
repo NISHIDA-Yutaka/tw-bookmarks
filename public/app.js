@@ -271,6 +271,74 @@
     });
   }
 
+  // 一覧の画像を押したら、ページを移らずに大きく開く。同じ投稿の画像は ← → やスワイプで切り替える
+  let viewer = null;
+  const openViewer = (links, index) => {
+    if (!viewer) {
+      viewer = document.createElement('dialog');
+      viewer.className = 'viewer';
+      viewer.innerHTML =
+        '<button type="button" class="v-close" aria-label="閉じる">×</button>' +
+        '<button type="button" class="v-prev" aria-label="前の画像">‹</button>' +
+        '<figure><img alt=""><figcaption></figcaption></figure>' +
+        '<button type="button" class="v-next" aria-label="次の画像">›</button>' +
+        '<p class="v-count"></p>';
+      document.body.appendChild(viewer);
+      const img = viewer.querySelector('img');
+      const step = (d) => {
+        const n = viewer.links.length;
+        viewer.index = (viewer.index + d + n) % n;
+        show();
+      };
+      const show = () => {
+        const a = viewer.links[viewer.index];
+        const alt = a.querySelector('img')?.alt || '';
+        img.src = a.getAttribute('href');
+        img.alt = alt;
+        viewer.querySelector('figcaption').textContent = alt;
+        const many = viewer.links.length > 1;
+        viewer.classList.toggle('many', many);
+        viewer.querySelector('.v-count').textContent = many ? `${viewer.index + 1} / ${viewer.links.length}` : '';
+      };
+      viewer.show = show;
+      viewer.querySelector('.v-close').addEventListener('click', () => viewer.close());
+      viewer.querySelector('.v-prev').addEventListener('click', () => step(-1));
+      viewer.querySelector('.v-next').addEventListener('click', () => step(1));
+      // 画像の外（暗いところ）を押したら閉じる
+      viewer.addEventListener('click', (e) => {
+        if (e.target === viewer || e.target.tagName === 'FIGURE') viewer.close();
+      });
+      viewer.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') step(-1);
+        if (e.key === 'ArrowRight') step(1);
+      });
+      let startX = null;
+      viewer.addEventListener('touchstart', (e) => (startX = e.touches[0].clientX), { passive: true });
+      viewer.addEventListener('touchend', (e) => {
+        if (startX === null || viewer.links.length < 2) return;
+        const dx = e.changedTouches[0].clientX - startX;
+        startX = null;
+        if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+      });
+      viewer.addEventListener('close', () => {
+        document.documentElement.classList.remove('viewer-open');
+        img.removeAttribute('src');
+      });
+    }
+    viewer.links = links;
+    viewer.index = index;
+    viewer.show();
+    document.documentElement.classList.add('viewer-open');
+    viewer.showModal();
+  };
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('.thumbs a.zoom');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || typeof HTMLDialogElement !== 'function') return;
+    e.preventDefault();
+    const links = [...a.closest('.thumbs').querySelectorAll('a.zoom')];
+    openViewer(links, links.indexOf(a));
+  });
+
   // 動画は同時に1本だけ流す（一覧で次の動画を再生したら、前のものは止める）
   document.addEventListener(
     'play',
