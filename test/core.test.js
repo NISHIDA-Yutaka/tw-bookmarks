@@ -11,7 +11,7 @@ import { linkifyText } from '../lib/html.js';
 import { Library, writePost, maxSavedSeq, addCards, lacksCard, buildThreads, collapseThreads } from '../lib/library.js';
 import { statusBanner, postPage, listPage, copyText } from '../lib/render.js';
 import { normalizeApiPage } from '../lib/normalize-api.js';
-import { setArchived, readArchive, parseArchiveForm, isSameOrigin } from '../lib/archive.js';
+import { setArchived, readArchive, setDeleted, readDeleted, parseArchiveForm, isSameOrigin } from '../lib/archive.js';
 import { startAuthorization, parseCallback, describeError } from '../lib/twapi.js';
 
 const sample = JSON.parse(fs.readFileSync(new URL('./fixtures/export-sample.json', import.meta.url), 'utf8'));
@@ -268,6 +268,29 @@ test('アーカイブは元の投稿を書き換えず、別のファイルで�
   fs.rmSync(dir, { recursive: true });
 });
 
+test('削除した投稿はどこにも出さず、元のデータは残して戻せる', async () => {
+  const { deletedPage } = await import('../lib/render.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-del-'));
+  fs.mkdirSync(path.join(dir, 'state'));
+  const a = '1000000000000000041';
+  const b = '1000000000000000042';
+  for (const [id, seq] of [[a, 1], [b, 2]]) writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: `本文${id}`, media: [], card: null, quoted: null }, { saved_seq: seq });
+  const before = fs.readFileSync(path.join(dir, 'posts', `${a}.md`), 'utf8');
+  assert.equal(setDeleted(dir, [a, '../x'], true, new Date('2026-11-15T00:00:00Z')), 1);
+  assert.deepEqual([...readDeleted(dir)], [[a, '2026-11-15T00:00:00.000Z']]);
+  assert.equal(fs.readFileSync(path.join(dir, 'posts', `${a}.md`), 'utf8'), before);
+  const lib = new Library(dir, { ttlMs: 0 }).refresh();
+  assert.equal(lib.get(a), null);
+  assert.deepEqual(lib.posts.map((p) => p.id), [b]);
+  assert.equal(lib.getDeleted(a).deleted_at, '2026-11-15T00:00:00.000Z');
+  const html = deletedPage('/tw', lib.deleted, lib);
+  assert.match(html, new RegExp(`value="${a}"[\\s\\S]*本文${a}[\\s\\S]*name="do" value="undelete"`));
+  assert.equal(setDeleted(dir, [a], false), 1);
+  assert.equal(lib.refresh().get(a)?.id, a);
+  assert.equal(lib.deleted.length, 0);
+  fs.rmSync(dir, { recursive: true });
+});
+
 test('アーカイブのフォームは、おかしな ID や外への戻り先を捨てる', () => {
   const f = parseArchiveForm('ids=1850000000000000002+abc+1850000000000000003&do=archive&back=%2Ftw%2F%3Fview%3Dall', '/tw');
   assert.deepEqual(f.ids, ['1850000000000000002', '1850000000000000003']);
@@ -275,6 +298,9 @@ test('アーカイブのフォームは、おかしな ID や外への戻り先�
   assert.equal(f.back, '/tw/?view=all');
   assert.equal(parseArchiveForm('ids=1&do=restore', '/tw').archived, false);
   assert.equal(parseArchiveForm('ids=1&do=delete', '/tw').archived, null);
+  assert.equal(parseArchiveForm('ids=1&do=delete', '/tw').deleted, true);
+  assert.equal(parseArchiveForm('ids=1&do=undelete', '/tw').deleted, false);
+  assert.equal(parseArchiveForm('ids=1&do=archive', '/tw').deleted, null);
   for (const back of ['https://evil.example/', '//evil.example/tw/', '/tw/\\evil', '/other']) {
     assert.equal(parseArchiveForm(`ids=1&do=archive&back=${encodeURIComponent(back)}`, '/tw').back, '/tw/');
   }

@@ -12,14 +12,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Library, collapseThreads } from './lib/library.js';
-import { setArchived, parseArchiveForm, isSameOrigin } from './lib/archive.js';
+import { setArchived, setDeleted, parseArchiveForm, isSameOrigin } from './lib/archive.js';
 import { layout, listPage, cardList, postPage, messagePage, relatedList } from './lib/render.js';
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
 import { localRelated, cachedRelated, saveRelated } from './lib/related.js';
 import { diskStatus, diskAlert } from './lib/disk.js';
 import { applyFolderForm, assignPosts, parseAssignForm } from './lib/folders.js';
 import { runAutoSort, pendingPosts } from './lib/autosort.js';
-import { foldersPage } from './lib/render.js';
+import { foldersPage, deletedPage } from './lib/render.js';
 
 const PORT = Number(process.env.PORT ?? 3050);
 const LIBRARY_DIR = process.env.LIBRARY_DIR ?? '/var/lib/tw-bookmarks';
@@ -66,7 +66,7 @@ function diskNotice() {
 }
 
 function page(res, status, title, body, view = '') {
-  send(res, status, layout(BASE, { title, body, status: lib.status, view, disk: diskNotice(), folders: lib.folders.folders }));
+  send(res, status, layout(BASE, { title, body, status: lib.status, view, disk: diskNotice(), folders: lib.folders.folders, deleted: collapseThreads(lib.deleted).length }));
 }
 
 // 動画。ブラウザが途中から読めるよう（シークや Safari の再生に必要）Range に応える
@@ -128,11 +128,20 @@ function readForm(req, res, done) {
   });
 }
 
-// アーカイブする／戻すボタン（フォームの POST）。終わったら元のページへ戻す
+// アーカイブする／戻す、削除する／戻すボタン（フォームの POST）。終わったら元のページへ戻す
 function handleArchive(req, res) {
   readForm(req, res, (body) => {
     const form = parseArchiveForm(body, BASE);
     lib.refresh();
+    if (form.deleted !== null) {
+      // 削除は一覧にある投稿だけ、戻すのは削除済みの投稿だけ
+      const ids = form.ids.filter((id) => (form.deleted ? lib.get(id) : lib.getDeleted(id)));
+      if (ids.length) setDeleted(LIBRARY_DIR, ids, form.deleted);
+      lib.invalidate();
+      // 削除した投稿の詳細には戻れないので、一覧へ
+      const back = form.deleted && /\/p\/\d+/.test(form.back) ? `${BASE}/` : form.back;
+      return send(res, 303, '', 'text/plain', { Location: back });
+    }
     const ids = form.ids.filter((id) => lib.get(id));
     if (form.archived === null || !ids.length) return send(res, 303, '', 'text/plain', { Location: form.back });
     setArchived(LIBRARY_DIR, ids, form.archived);
@@ -285,13 +294,18 @@ async function handle(req, res) {
     return page(res, 200, 'フォルダ', foldersPage(BASE, lib, { message: msg, pending: pendingPosts(lib).length, jevReady: jevAvailable() }), 'folders');
   }
 
+  if (rest === 'deleted') return page(res, 200, '削除済み', deletedPage(BASE, collapseThreads(lib.deleted), lib), 'deleted');
+
   const rel = rest.match(/^related\/(\d{1,25})$/);
   if (rel) return handleRelated(req, res, rel[1]);
 
   const post = rest.match(/^p\/(\d{1,25})$/);
   if (post) {
     const item = lib.get(post[1]);
-    if (!item) return page(res, 404, '見つかりません', messagePage(BASE, `ID ${post[1]} の投稿は見つかりません。`));
+    if (!item) {
+      const gone = lib.getDeleted(post[1]) ? '削除済みです。上の「削除済み」から戻せます。' : '見つかりません。';
+      return page(res, 404, '見つかりません', messagePage(BASE, `ID ${post[1]} の投稿は${gone}`));
+    }
     const title = `${item.author_name ?? item.author_handle ?? ''}: ${(item.text ?? '').slice(0, 40)}`;
     return page(res, 200, title, postPage(BASE, item, lib, `${p}${url.search}`, postRelated(item)));
   }

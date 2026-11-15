@@ -358,3 +358,11 @@ button.danger { background: transparent; color: #c0392b; border-color: #e5b4ae; 
 .near .rel-list { margin-top: 8px; }
 .near-item { display: flex; gap: 8px; align-items: center; }
 .near-item a { flex: 1; min-width: 0; }
+
+/* 削除済みの一覧 */
+.deleted-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.deleted-item { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border-radius: 12px; padding: 10px 12px; }
+.deleted-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; }
+.deleted-body { flex: 1; min-width: 0; }
+.deleted-body .rel-text { margin: 4px 0 6px; }
+.deleted-body .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

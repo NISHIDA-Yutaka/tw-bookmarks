@@ -136,7 +136,8 @@
     } else if (btn.id === 'pickcopy') {
       const ok = await copy(picked.join(' '));
       toast(ok ? `${pickedCount()} 件の ID をコピーしました` : 'コピーできませんでした');
-    } else if (btn.id === 'pickarchive') {
+    } else if (btn.id === 'pickarchive' || btn.id === 'pickarchive-del') {
+      if (btn.dataset.do === 'delete' && !window.confirm(`選んだ ${pickedCount()} 件を削除しますか？どの画面にも出なくなります（「削除済み」から戻せます）`)) return;
       const form = $('pickform');
       form.elements.ids.value = picked.join(' ');
       form.elements.do.value = btn.dataset.do;
