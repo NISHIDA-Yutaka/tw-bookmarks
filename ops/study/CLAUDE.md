@@ -8,6 +8,7 @@
   - 前付け（先頭の `---` の間）に投稿者、日時、元の URL、画像、引用元（quoted）、リンクカード（card）、返信先が入っている。本文はその下
 - 画像: `/var/lib/tw-bookmarks/media/` の下。前付けの `file`／`image_file` が、このフォルダからの相対パス。内容の理解に必要なら Read で見る
 - メモ: `/var/lib/tw-bookmarks/notes/`。前付けの `posts` に、関係する投稿IDが入っている。過去に噛み砕いた内容があれば、まずそれを踏まえる
+- 持ち主の手書きのメモ: `/var/lib/tw-bookmarks/state/memos.json` の `memos` に、投稿ID（`post`）ごとの見出しと本文が入っている。持ち主自身の考えなので、噛み砕くときに踏まえる。読むだけで、書き換えない（手書きのメモは画面で書く）
 - アーカイブ: `/var/lib/tw-bookmarks/state/archive.json` の `archived` に、持ち主が「分析が終わった」として画面でアーカイブした投稿IDと日時が入っている。読むだけで、書き換えない（アーカイブは画面のボタンで行う）
 - 削除: `/var/lib/tw-bookmarks/state/deleted.json` の `deleted` に、持ち主が画面で削除した投稿IDと日時が入っている。持ち主が ID を指定したとき以外は、まとめや翻訳の対象にしない。読むだけで、書き換えない
 - ID のファイルが無ければ、そう伝える（取り込みがまだの可能性がある）

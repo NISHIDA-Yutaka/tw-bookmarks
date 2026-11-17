@@ -366,3 +366,13 @@ button.danger { background: transparent; color: #c0392b; border-color: #e5b4ae; 
 .deleted-body { flex: 1; min-width: 0; }
 .deleted-body .rel-text { margin: 4px 0 6px; }
 .deleted-body .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* 手書きのメモ */
+.badge.own { background: var(--accent-soft); color: var(--accent-soft-text); font-size: 12px; font-weight: 500; vertical-align: middle; }
+.memo.own .memo-head h3::before { background: var(--accent); }
+.memo-edit { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.memo-edit summary, .memo-new summary { cursor: pointer; font-size: 14px; color: var(--accent-soft-text); }
+.memo-edit .actions { margin-bottom: 8px; }
+.memo-new { background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 10px 18px; }
+.memo-new[open] { border-style: solid; }
+.memo-new textarea, .memo-edit textarea { resize: vertical; min-height: 8em; line-height: 1.6; }

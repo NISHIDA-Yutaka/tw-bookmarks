@@ -658,3 +658,35 @@ test('投稿を ID で読むのは数字の ID を1〜100件だけ', async () =>
     globalThis.fetch = realFetch;
   }
 });
+
+test('手書きのメモは state/memos.json に書き、詳細画面に安全に出す', async () => {
+  const { applyMemoForm, readMemos } = await import('../lib/memos.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-memo-'));
+  fs.mkdirSync(path.join(dir, 'state'));
+  const id = '1000000000000000061';
+  writePost(dir, { id, url: `https://x.com/i/status/${id}`, author: { handle: 'u' }, text: '本文', media: [], card: null, quoted: null }, { saved_seq: 1 });
+  const lib = new Library(dir, { ttlMs: 0 }).refresh();
+  const exists = (x) => Boolean(lib.get(x));
+  const body = (o) => new URLSearchParams(o).toString();
+  assert.throws(() => applyMemoForm(dir, body({ do: 'add', post: '1000000000000000099', body: 'x' }), exists), /ありません/);
+  assert.throws(() => applyMemoForm(dir, body({ do: 'add', post: id, body: '  ' }), exists), /空/);
+  const out = applyMemoForm(dir, body({ do: 'add', post: id, title: '見出し\u0007', body: '**大事** <script>alert(1)</script>\r\n2行目' }), exists, new Date('2026-11-17T00:00:00Z'));
+  assert.equal(out.post, id);
+  const m = readMemos(dir)[out.memo];
+  assert.equal(m.title, '見出し');
+  assert.equal(m.body, '**大事** <script>alert(1)</script>\n2行目');
+  lib.refresh();
+  assert.equal(lib.notesFor(id).length, 1);
+  assert.ok(lib.get(id).haystack.includes('大事'));
+  const html = postPage('/tw', lib.get(id), lib);
+  assert.match(html, /<strong>大事<\/strong>/);
+  assert.ok(!html.includes('<script>alert'));
+  assert.match(html, /手書き[\s\S]*name="do" value="edit"/);
+  applyMemoForm(dir, body({ do: 'edit', id: out.memo, title: '', body: '直した' }), exists, new Date('2026-11-17T01:00:00Z'));
+  assert.equal(readMemos(dir)[out.memo].updated_at, '2026-11-17T01:00:00.000Z');
+  assert.equal(readMemos(dir)[out.memo].title, null);
+  assert.throws(() => applyMemoForm(dir, body({ do: 'edit', id: 'm00000000', body: 'x' }), exists), /ありません/);
+  applyMemoForm(dir, body({ do: 'delete', id: out.memo }), exists);
+  assert.deepEqual(readMemos(dir), {});
+  fs.rmSync(dir, { recursive: true });
+});

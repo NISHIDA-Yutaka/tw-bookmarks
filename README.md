@@ -20,6 +20,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 | `/var/lib/tw-bookmarks/notes/translations/<投稿ID>.md` | 日本語以外の投稿の翻訳。画面は本文の代わりに翻訳を出し（「翻訳」の印付き）、原文は開くと見える | tw-study |
 | `/var/lib/tw-bookmarks/status/fetch.json` | 自動取り込みの結果（段階3） | tw-fetch |
 | `/var/lib/tw-bookmarks/state/archive.json` | アーカイブした投稿IDと日時（元の投稿は書き換えない） | tw-bookmarks（画面） |
+| `/var/lib/tw-bookmarks/state/memos.json` | 持ち主が画面で手書きしたメモ | tw-bookmarks（画面） |
 | `/var/lib/tw-bookmarks/state/deleted.json` | 削除した投稿IDと日時（元の投稿・画像・メモは消さない） | tw-bookmarks（画面） |
 | `/var/lib/tw-fetch/token.json` | X の更新用トークン（0700 のフォルダ。tw-fetch 以外は読めない、バックアップにも入らない） | tw-fetch |
 | `/usr/local/lib/tw-fetch/` | 取り込み係のプログラム（`setup-stage3.sh` がデプロイ済みのコードから写す） | root |
@@ -43,6 +44,7 @@ X のブックマークを自分の VPS にためて、振り返る・噛み砕�
 
 - 画面（`server.js`、ユーザー tw-bookmarks）は読むのが基本。書けるのはアーカイブの状態（`state/`）だけ（systemd の ReadWritePaths）。127.0.0.1:3050 で待ち受け、Caddy が Tailscale 側の `/tw/` を渡す
 - アーカイブ: 分析が終わった投稿を一覧から外す。画面の「アーカイブ」ボタン（1件ずつ・選択してまとめて）で行い、「アーカイブ」タブで見る・戻す。ほかのサイトからの送信（CSRF）は Sec-Fetch-Site と Origin の確認で拒否する。準備は `ops/setup-archive.sh`
+- 手書きのメモ: 詳細画面の「＋ メモを書く」で、持ち主が自分でメモを書ける（見出しは任意、本文は Markdown・5000字まで）。噛み砕き役のメモと並べて「手書き」の印を付けて出し、「直す」から書き直し・消すができる。メモの数・検索・Jev に渡す材料にも入る。置き場は `state/memos.json`（`notes/` は噛み砕き役の場所なので混ぜない）
 - 削除: いらない投稿を、一覧・検索・フォルダ・関連する投稿・自動の振り分けのどこにも出さなくする。カードと詳細の「削除」ボタン（確かめてから）と、選択してまとめての「削除」で行う。元のデータは消さず、上の「削除済み」の画面から戻せる。X のブックマークはそのまま（取り込み直しても削除済みのまま）。tw-study も、持ち主が ID を指定したとき以外は扱わない
 - スレッド: ブックマークした投稿どうしが返信（`reply_to_id`）でつながっていたら、読み込むときに組み立てる（ファイルには書かない）。一覧では1枚にまとめ、詳細ページでは全部を読む順に出す。一覧の1枚の ID コピー・本文コピー・選択・アーカイブはスレッド全体に効く。間の投稿がブックマークされていないと、そこで切れる
 - `/var/lib/tw-bookmarks` は毎日のサーバー外バックアップに自動で含まれる

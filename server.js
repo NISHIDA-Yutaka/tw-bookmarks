@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Library, collapseThreads } from './lib/library.js';
 import { setArchived, setDeleted, parseArchiveForm, isSameOrigin } from './lib/archive.js';
+import { applyMemoForm } from './lib/memos.js';
 import { layout, listPage, cardList, postPage, messagePage, relatedList } from './lib/render.js';
 import { judge, jevText, jevAvailable } from './lib/jev-client.js';
 import { localRelated, cachedRelated, saveRelated } from './lib/related.js';
@@ -103,7 +104,7 @@ function sendVideo(req, res, file) {
 const MAX_FORM_BYTES = 16 * 1024;
 
 // 画面のフォーム（POST）を読む。ほかのサイトからの送信・形のおかしいもの・大きすぎるものは断る
-function readForm(req, res, done) {
+function readForm(req, res, done, maxBytes = MAX_FORM_BYTES) {
   if (!isSameOrigin(req.headers)) return send(res, 403, 'この画面の外からの操作は受け付けません', 'text/plain; charset=utf-8');
   if (!/^application\/x-www-form-urlencoded\b/.test(req.headers['content-type'] ?? '')) {
     return send(res, 415, 'Unsupported Media Type', 'text/plain');
@@ -112,7 +113,7 @@ function readForm(req, res, done) {
   let size = 0;
   req.on('data', (c) => {
     size += c.length;
-    if (size > MAX_FORM_BYTES) {
+    if (size > maxBytes) {
       send(res, 413, 'Payload Too Large', 'text/plain');
       req.destroy();
     } else chunks.push(c);
@@ -175,6 +176,27 @@ function handleFolders(req, res) {
     if (message.includes('振り分けをかけます')) setTimeout(autoSort, 1000);
     send(res, 303, '', 'text/plain', { Location: `${BASE}/folders?msg=${encodeURIComponent(message)}` });
   });
+}
+
+// 手書きのメモ（書く・直す・消す）。終わったらその投稿の詳細へ戻す
+function handleMemos(req, res) {
+  readForm(
+    req,
+    res,
+    (body) => {
+      lib.refresh();
+      let out;
+      try {
+        out = applyMemoForm(LIBRARY_DIR, body, (id) => Boolean(lib.get(id)));
+      } catch (err) {
+        return page(res, 400, 'メモを保存できませんでした', messagePage(BASE, `メモを保存できませんでした: ${err.message}`));
+      }
+      lib.invalidate();
+      send(res, 303, '', 'text/plain', { Location: `${BASE}/p/${out.post}${out.memo ? `#memo-${out.memo}` : '#notes'}` });
+    },
+    // 日本語は1文字が送るときに9バイトほどになるので、メモは大きめに受ける
+    64 * 1024,
+  );
 }
 
 // 自動の振り分け（数分ごと。新しい投稿が無ければ何もしない）
@@ -258,6 +280,7 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === `${BASE}/archive`) return handleArchive(req, res);
   if (req.method === 'POST' && p === `${BASE}/folders/assign`) return handleAssign(req, res);
   if (req.method === 'POST' && p === `${BASE}/folders`) return handleFolders(req, res);
+  if (req.method === 'POST' && p === `${BASE}/memos`) return handleMemos(req, res);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method Not Allowed', 'text/plain');
 
   if (p === '/healthz') return send(res, 200, 'ok', 'text/plain');
